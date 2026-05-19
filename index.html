@@ -4,208 +4,350 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calculateur de coûts LLM — IALab</title>
+<meta name="description" content="Estimez et comparez le coût mensuel de vos projets LLM (RAG, extraction, chatbot) en fonction des modèles et de votre volume d'usage.">
+<meta name="theme-color" content="#0a0a0c">
+<meta property="og:title" content="Calculateur de coûts LLM — IALab">
+<meta property="og:description" content="Estimez et comparez le coût mensuel de vos projets LLM selon le type d'usage et les modèles.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0a0c'/%3E%3Cpath d='M11 22V10h7a3 3 0 0 1 0 6h-4M15 16l5 6' stroke='%23e8c07a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['"Instrument Serif"', 'Georgia', 'serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
       colors: {
-        brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81' }
+        ink: { 950:'#0a0a0c', 900:'#101013', 850:'#16161a', 800:'#1c1c21', 700:'#2a2a31', 600:'#3a3a44', 500:'#5b5b66', 400:'#8a8a94', 300:'#b5b5bd', 200:'#d4d4d9', 100:'#ededf0', 50:'#fafafb' },
+        accent: { 50:'#fdf6e7', 200:'#f3d9a3', 300:'#ecc88a', 400:'#e8c07a', 500:'#d4a85a', 600:'#a8843e', 700:'#7c6230' },
       }
     }
   }
 }
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-  body { font-family: 'Inter', system-ui, sans-serif; }
-  .tab-active { border-color: #6366f1; color: #a5b4fc; background: rgba(99,102,241,0.1); }
-  .tab-inactive { border-color: transparent; color: #9ca3af; }
-  .tab-inactive:hover { color: #d1d5db; border-color: #4b5563; }
-  input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: #374151; outline: none; }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid #818cf8; }
-  input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid #818cf8; }
-  .toggle-bg { transition: background-color 0.2s; }
-  .toggle-dot { transition: transform 0.2s; }
-  input:checked + .toggle-bg { background-color: #6366f1; }
-  input:checked + .toggle-bg .toggle-dot { transform: translateX(100%); }
-  .card-glow { box-shadow: 0 0 0 1px rgba(99,102,241,0.1), 0 4px 24px rgba(0,0,0,0.3); }
-  .result-card { transition: all 0.3s ease; }
-  .result-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
-  .model-chip { transition: all 0.15s ease; }
-  .model-chip.selected { background: rgba(99,102,241,0.2); border-color: #6366f1; color: #a5b4fc; }
-  .model-chip:not(.selected):hover { border-color: #6b7280; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .fade-in { animation: fadeIn 0.3s ease forwards; }
-  .number-input::-webkit-inner-spin-button,
-  .number-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-  .number-input { -moz-appearance: textfield; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  html { color-scheme: dark; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0a0a0c;
+    color: #ededf0;
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle grain overlay — adds texture to flat dark surfaces */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.035;
+    pointer-events: none;
+    z-index: 1;
+  }
+  /* Spotlight wash behind header */
+  body::after {
+    content: '';
+    position: fixed; top: -200px; left: 50%;
+    transform: translateX(-50%);
+    width: 900px; height: 600px;
+    background: radial-gradient(ellipse at center, rgba(232,192,122,0.06) 0%, transparent 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  main, header, footer { position: relative; z-index: 2; }
+
+  .font-display { font-family: 'Instrument Serif', Georgia, serif; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* Visible, consistent focus rings */
+  :focus-visible { outline: 2px solid #e8c07a; outline-offset: 2px; border-radius: 6px; }
+  button:focus-visible, input:focus-visible, label:focus-visible { outline-offset: 3px; }
+
+  /* Range slider with progress fill */
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    height: 3px;
+    background: linear-gradient(to right, #e8c07a 0%, #e8c07a var(--pct,0%), #2a2a31 var(--pct,0%), #2a2a31 100%);
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #fafafb;
+    border: 0;
+    box-shadow: 0 0 0 4px rgba(250,250,251,0.04), 0 1px 4px rgba(0,0,0,0.5);
+    cursor: grab;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.18); box-shadow: 0 0 0 6px rgba(232,192,122,0.12), 0 2px 6px rgba(0,0,0,0.6); }
+  input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.1); }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; background: #fafafb; border: 0;
+    box-shadow: 0 0 0 4px rgba(250,250,251,0.04), 0 1px 4px rgba(0,0,0,0.5);
+    transition: transform 0.18s ease;
+  }
+  input[type=range]:hover::-moz-range-thumb { transform: scale(1.18); }
+
+  /* Number input — strip spinners */
+  .num-input::-webkit-inner-spin-button,
+  .num-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .num-input { -moz-appearance: textfield; }
+  .num-input { transition: border-color 0.18s ease, background-color 0.18s ease; }
+  .num-input:focus { outline: none; border-color: #e8c07a; background-color: #1c1c21; }
+
+  /* Tabs — segmented control with sliding indicator */
+  .tabs { position: relative; display: inline-flex; padding: 4px; background: rgba(16,16,19,0.6); border: 1px solid #1c1c21; border-radius: 12px; backdrop-filter: blur(8px); }
+  .tab-btn { position: relative; z-index: 1; padding: 8px 14px; font-size: 13px; font-weight: 500; color: #8a8a94; border-radius: 8px; transition: color 0.18s ease; display: inline-flex; align-items: center; gap: 7px; }
+  .tab-btn:hover { color: #d4d4d9; }
+  .tab-btn[aria-selected="true"] { color: #fafafb; }
+  .tab-indicator { position: absolute; top: 4px; bottom: 4px; background: #1c1c21; border-radius: 8px; box-shadow: inset 0 0 0 1px #2a2a31, 0 1px 2px rgba(0,0,0,0.4); transition: left 0.28s cubic-bezier(0.32,0.72,0,1), width 0.28s cubic-bezier(0.32,0.72,0,1); z-index: 0; }
+
+  /* Cards */
+  .surface { background: linear-gradient(180deg, rgba(22,22,26,0.7) 0%, rgba(16,16,19,0.7) 100%); border: 1px solid #1c1c21; border-radius: 16px; box-shadow: 0 1px 0 0 rgba(255,255,255,0.03) inset, 0 8px 24px -12px rgba(0,0,0,0.6); }
+  .surface-flush { background: rgba(16,16,19,0.5); border: 1px solid #1c1c21; border-radius: 14px; }
+
+  /* Toggle switch */
+  .toggle-bg { transition: background-color 0.2s ease; }
+  .toggle-dot { transition: transform 0.22s cubic-bezier(0.32,0.72,0,1); box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  input:checked + .toggle-bg { background-color: #e8c07a; }
+  input:checked + .toggle-bg .toggle-dot { transform: translateX(20px); background: #0a0a0c; }
+
+  /* Model chips */
+  .chip { font-size: 12px; padding: 6px 12px; border-radius: 8px; border: 1px solid #2a2a31; background: rgba(28,28,33,0.4); color: #b5b5bd; cursor: pointer; transition: all 0.16s ease; line-height: 1.2; }
+  .chip:hover { border-color: #3a3a44; background: rgba(28,28,33,0.7); color: #ededf0; }
+  .chip.selected { background: rgba(232,192,122,0.1); border-color: rgba(232,192,122,0.45); color: #ecc88a; }
+  .chip.selected:hover { background: rgba(232,192,122,0.14); }
+
+  /* Result cards */
+  .result-card { background: linear-gradient(180deg, rgba(22,22,26,0.75) 0%, rgba(16,16,19,0.75) 100%); border: 1px solid #1c1c21; border-radius: 18px; padding: 22px; transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease; position: relative; overflow: hidden; }
+  .result-card:hover { transform: translateY(-2px); border-color: #2a2a31; box-shadow: 0 20px 50px -20px rgba(0,0,0,0.7); }
+  .result-card.winner { border-color: rgba(110,231,183,0.25); box-shadow: 0 0 0 1px rgba(110,231,183,0.08), 0 20px 40px -20px rgba(16,185,129,0.18); }
+  .result-card.winner::before { content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: linear-gradient(90deg, transparent, rgba(110,231,183,0.6), transparent); }
+
+  /* Subtle reveal on results */
+  @keyframes reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .reveal { animation: reveal 0.4s cubic-bezier(0.32,0.72,0,1) both; }
+
+  /* Stat divider */
+  .hairline { border-color: #1c1c21; }
+
+  /* Range row layout helper */
+  .field-label { font-size: 12px; color: #8a8a94; font-weight: 500; letter-spacing: 0.01em; }
+  .field-val { font-size: 13px; color: #ededf0; }
+
+  /* Selection */
+  ::selection { background: rgba(232,192,122,0.25); color: #fafafb; }
+
+  /* Scrollbar — discreet */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a31; border-radius: 999px; border: 2px solid #0a0a0c; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a44; }
 </style>
 </head>
-<body class="dark bg-gray-950 text-gray-100 min-h-screen">
+<body class="min-h-[100dvh]">
 
-<div class="max-w-6xl mx-auto px-4 py-8 sm:py-12">
-  <header class="text-center mb-10">
-    <div class="inline-flex items-center gap-3 mb-4">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-lg">IA</div>
-      <span class="text-xl font-semibold text-gray-300">IALab</span>
+<div class="max-w-6xl mx-auto px-5 sm:px-8 pt-10 sm:pt-14 pb-16">
+
+  <header class="mb-10 sm:mb-14">
+    <a href="https://ia-lab.fr" target="_blank" rel="noopener" class="inline-flex items-center gap-2.5 group">
+      <span class="w-7 h-7 rounded-lg bg-ink-900 border border-ink-800 flex items-center justify-center">
+        <span class="font-display text-accent-400 text-[15px] leading-none">IA</span>
+      </span>
+      <span class="text-[13px] font-medium text-ink-300 group-hover:text-ink-100 transition-colors">IALab</span>
+    </a>
+    <div class="mt-7 sm:mt-9 grid sm:grid-cols-12 gap-x-8 items-end">
+      <h1 class="sm:col-span-8 font-display text-5xl sm:text-[64px] leading-[0.95] tracking-[-0.02em] text-balance text-ink-50">
+        Calculateur de <em class="italic text-accent-400">coûts</em> LLM
+      </h1>
+      <p class="sm:col-span-4 mt-5 sm:mt-0 text-[15px] leading-relaxed text-ink-400 max-w-md text-pretty">
+        Estimez le coût mensuel d'un projet d'IA générative selon l'usage, le volume et les modèles que vous comparez.
+      </p>
     </div>
-    <h1 class="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent mb-2">Calculateur de coûts LLM</h1>
-    <p class="text-gray-400 max-w-xl mx-auto">Estimez le coût mensuel de vos projets IA selon le type d'usage et les modèles choisis.</p>
   </header>
 
-  <div class="flex justify-center mb-8">
-    <div class="inline-flex gap-1 p-1 bg-gray-900 rounded-xl border border-gray-800">
-      <button onclick="switchTab('rag')" id="tab-rag" class="tab-btn px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium border-b-2 transition-all tab-active">
-        <span class="hidden sm:inline">🔍 </span>RAG
+  <nav class="mb-8 sm:mb-10" aria-label="Type d'usage">
+    <div class="tabs" role="tablist">
+      <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
+      <button onclick="switchTab('rag')" id="tab-rag" role="tab" aria-selected="true" class="tab-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+        RAG
       </button>
-      <button onclick="switchTab('extraction')" id="tab-extraction" class="tab-btn px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium border-b-2 transition-all tab-inactive">
-        <span class="hidden sm:inline">📄 </span>Extraction
+      <button onclick="switchTab('extraction')" id="tab-extraction" role="tab" aria-selected="false" class="tab-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        Extraction
       </button>
-      <button onclick="switchTab('chatbot')" id="tab-chatbot" class="tab-btn px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium border-b-2 transition-all tab-inactive">
-        <span class="hidden sm:inline">💬 </span>Chatbot
+      <button onclick="switchTab('chatbot')" id="tab-chatbot" role="tab" aria-selected="false" class="tab-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
+        Chatbot
       </button>
     </div>
-  </div>
+  </nav>
 
-  <div class="grid lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-1 space-y-6">
-      <div id="panel-rag" class="panel bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow">
-        <h2 class="text-lg font-semibold text-brand-300 mb-5">Paramètres RAG</h2>
+  <main class="grid lg:grid-cols-12 gap-6 sm:gap-7">
+
+    <aside class="lg:col-span-5 space-y-5">
+
+      <section id="panel-rag" class="panel surface p-6 sm:p-7">
+        <div class="flex items-baseline justify-between mb-5">
+          <h2 class="text-[15px] font-semibold text-ink-100">Paramètres RAG</h2>
+          <span class="text-[11px] uppercase tracking-[0.14em] text-ink-500">Retrieval</span>
+        </div>
         <div class="space-y-5">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Requêtes par jour</label>
+          <div class="field" data-field="rag-requests">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="rag-requests-num">Requêtes / jour</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="5000" value="100" id="rag-requests" oninput="sync('rag-requests');calculate()" class="flex-1">
-              <input type="number" min="1" max="50000" value="100" id="rag-requests-num" oninput="syncNum('rag-requests');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="50000" value="100" id="rag-requests-num" oninput="syncNum('rag-requests');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Documents indexés</label>
+          <div class="field" data-field="rag-docs">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="rag-docs-num">Documents indexés</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="10" max="100000" value="1000" step="10" id="rag-docs" oninput="sync('rag-docs');calculate()" class="flex-1">
-              <input type="number" min="1" max="1000000" value="1000" id="rag-docs-num" oninput="syncNum('rag-docs');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="1000000" value="1000" id="rag-docs-num" oninput="syncNum('rag-docs');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Taille moyenne des documents (pages)</label>
+          <div class="field" data-field="rag-pages">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="rag-pages-num">Taille moyenne (pages)</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="200" value="10" id="rag-pages" oninput="sync('rag-pages');calculate()" class="flex-1">
-              <input type="number" min="1" max="1000" value="10" id="rag-pages-num" oninput="syncNum('rag-pages');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="1000" value="10" id="rag-pages-num" oninput="syncNum('rag-pages');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Chunks récupérés par requête</label>
+          <div class="field" data-field="rag-chunks">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="rag-chunks-num">Chunks par requête</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="20" value="5" id="rag-chunks" oninput="sync('rag-chunks');calculate()" class="flex-1">
-              <input type="number" min="1" max="50" value="5" id="rag-chunks-num" oninput="syncNum('rag-chunks');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="50" value="5" id="rag-chunks-num" oninput="syncNum('rag-chunks');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div id="panel-extraction" class="panel bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow hidden">
-        <h2 class="text-lg font-semibold text-brand-300 mb-5">Paramètres Extraction</h2>
+      <section id="panel-extraction" class="panel surface p-6 sm:p-7 hidden">
+        <div class="flex items-baseline justify-between mb-5">
+          <h2 class="text-[15px] font-semibold text-ink-100">Paramètres Extraction</h2>
+          <span class="text-[11px] uppercase tracking-[0.14em] text-ink-500">Structuré</span>
+        </div>
         <div class="space-y-5">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Documents par mois</label>
+          <div class="field" data-field="ext-docs">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="ext-docs-num">Documents / mois</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="10000" value="500" id="ext-docs" oninput="sync('ext-docs');calculate()" class="flex-1">
-              <input type="number" min="1" max="100000" value="500" id="ext-docs-num" oninput="syncNum('ext-docs');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="100000" value="500" id="ext-docs-num" oninput="syncNum('ext-docs');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Pages par document</label>
+          <div class="field" data-field="ext-pages">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="ext-pages-num">Pages / document</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="100" value="5" id="ext-pages" oninput="sync('ext-pages');calculate()" class="flex-1">
-              <input type="number" min="1" max="500" value="5" id="ext-pages-num" oninput="syncNum('ext-pages');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="500" value="5" id="ext-pages-num" oninput="syncNum('ext-pages');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Champs à extraire</label>
+          <div class="field" data-field="ext-fields">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="ext-fields-num">Champs à extraire</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="50" value="10" id="ext-fields" oninput="sync('ext-fields');calculate()" class="flex-1">
-              <input type="number" min="1" max="100" value="10" id="ext-fields-num" oninput="syncNum('ext-fields');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="100" value="10" id="ext-fields-num" oninput="syncNum('ext-fields');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-400">Vision (images PDF)</label>
+          <div class="flex items-center justify-between pt-1">
+            <label for="ext-vision" class="text-[13px] text-ink-200">Mode vision (PDF en image)</label>
             <label class="relative inline-block w-11 h-6 cursor-pointer">
               <input type="checkbox" id="ext-vision" onchange="calculate()" class="sr-only peer">
-              <div class="toggle-bg w-11 h-6 bg-gray-700 rounded-full peer-checked:bg-brand-500">
-                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow"></div>
+              <div class="toggle-bg w-11 h-6 bg-ink-700 rounded-full">
+                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full"></div>
               </div>
             </label>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div id="panel-chatbot" class="panel bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow hidden">
-        <h2 class="text-lg font-semibold text-brand-300 mb-5">Paramètres Chatbot</h2>
+      <section id="panel-chatbot" class="panel surface p-6 sm:p-7 hidden">
+        <div class="flex items-baseline justify-between mb-5">
+          <h2 class="text-[15px] font-semibold text-ink-100">Paramètres Chatbot</h2>
+          <span class="text-[11px] uppercase tracking-[0.14em] text-ink-500">Conversation</span>
+        </div>
         <div class="space-y-5">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Utilisateurs par mois</label>
+          <div class="field" data-field="chat-users">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="chat-users-num">Utilisateurs / mois</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="10" max="50000" value="1000" step="10" id="chat-users" oninput="sync('chat-users');calculate()" class="flex-1">
-              <input type="number" min="1" max="500000" value="1000" id="chat-users-num" oninput="syncNum('chat-users');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="500000" value="1000" id="chat-users-num" oninput="syncNum('chat-users');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Messages par session</label>
+          <div class="field" data-field="chat-messages">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="chat-messages-num">Messages / session</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="50" value="8" id="chat-messages" oninput="sync('chat-messages');calculate()" class="flex-1">
-              <input type="number" min="1" max="200" value="8" id="chat-messages-num" oninput="syncNum('chat-messages');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="200" value="8" id="chat-messages-num" oninput="syncNum('chat-messages');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Contexte moyen (tokens)</label>
+          <div class="field" data-field="chat-context">
+            <div class="flex items-center justify-between mb-2"><label class="field-label" for="chat-context-num">Contexte moyen (tokens)</label></div>
             <div class="flex items-center gap-3">
               <input type="range" min="500" max="32000" value="4000" step="500" id="chat-context" oninput="sync('chat-context');calculate()" class="flex-1">
-              <input type="number" min="100" max="128000" value="4000" id="chat-context-num" oninput="syncNum('chat-context');calculate()" class="number-input w-24 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="100" max="128000" value="4000" id="chat-context-num" oninput="syncNum('chat-context');calculate()" class="num-input mono w-24 bg-ink-900 border border-ink-800 rounded-md px-2.5 py-1.5 text-[13px] text-right text-ink-100">
             </div>
           </div>
-          <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-400">Mémoire activée</label>
+          <div class="flex items-center justify-between pt-1">
+            <label for="chat-memory" class="text-[13px] text-ink-200">Mémoire conversationnelle</label>
             <label class="relative inline-block w-11 h-6 cursor-pointer">
               <input type="checkbox" id="chat-memory" onchange="calculate()" class="sr-only peer">
-              <div class="toggle-bg w-11 h-6 bg-gray-700 rounded-full peer-checked:bg-brand-500">
-                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow"></div>
+              <div class="toggle-bg w-11 h-6 bg-ink-700 rounded-full">
+                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full"></div>
               </div>
             </label>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow">
-        <h2 class="text-lg font-semibold text-brand-300 mb-4">Modèles à comparer</h2>
-        <div id="model-chips" class="flex flex-wrap gap-2"></div>
-      </div>
-
-      <div class="bg-gray-900 rounded-2xl p-4 border border-gray-800 card-glow">
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-400">Taux EUR/USD</span>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-500">1€ =</span>
-            <input type="number" step="0.01" min="0.5" max="2" value="1.08" id="eur-rate" oninput="calculate()" class="number-input w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-right focus:border-brand-500 focus:outline-none">
-            <span class="text-xs text-gray-500">$</span>
-          </div>
+      <section class="surface p-6 sm:p-7">
+        <div class="flex items-baseline justify-between mb-4">
+          <h2 class="text-[15px] font-semibold text-ink-100">Modèles à comparer</h2>
+          <span id="model-count" class="text-[11px] tabular text-ink-500">2 sélectionnés</span>
         </div>
-      </div>
-    </div>
+        <div id="model-chips" class="space-y-3"></div>
+      </section>
 
-    <div class="lg:col-span-2">
-      <div id="results" class="grid sm:grid-cols-2 gap-4">
-        <div class="sm:col-span-2 text-center py-16 text-gray-600">
-          <p class="text-lg">Sélectionnez au moins un modèle pour voir les estimations</p>
+      <section class="surface-flush px-5 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-[12px] text-ink-400">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Taux de change</span>
         </div>
-      </div>
-    </div>
-  </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[12px] text-ink-500">1€</span>
+          <input type="number" step="0.01" min="0.5" max="2" value="1.08" id="eur-rate" oninput="calculate()" class="num-input mono w-16 bg-ink-900 border border-ink-800 rounded-md px-2 py-1 text-[12px] text-right text-ink-100">
+          <span class="text-[12px] text-ink-500">$</span>
+        </div>
+      </section>
 
-  <footer class="mt-12 text-center text-xs text-gray-600">
-    <p>Les estimations sont basées sur les tarifs publics des fournisseurs. Coûts réels susceptibles de varier.</p>
-    <p class="mt-1">© 2026 IALab — <a href="https://ia-lab.fr" target="_blank" class="text-brand-400 hover:text-brand-300">ia-lab.fr</a></p>
+    </aside>
+
+    <section class="lg:col-span-7" aria-live="polite">
+      <div class="flex items-baseline justify-between mb-5 px-1">
+        <h2 class="text-[15px] font-semibold text-ink-100">Estimations</h2>
+        <span id="result-summary" class="text-[12px] text-ink-500"></span>
+      </div>
+      <div id="results" class="grid sm:grid-cols-2 gap-4"></div>
+    </section>
+
+  </main>
+
+  <footer class="mt-16 pt-8 border-t border-ink-800 grid sm:grid-cols-2 gap-3 text-[12px] text-ink-500">
+    <p class="text-pretty">Estimations indicatives basées sur les tarifs publics affichés par les fournisseurs. Les coûts réels peuvent varier selon le routage, le caching et les remises de volume.</p>
+    <p class="sm:text-right">© 2026 IALab · <a href="https://ia-lab.fr" target="_blank" rel="noopener" class="text-ink-300 hover:text-accent-400 transition-colors underline decoration-ink-700 underline-offset-2">ia-lab.fr</a></p>
   </footer>
 </div>
 
@@ -232,54 +374,89 @@ let selectedModels = new Set(['gpt4o', 'claude35sonnet']);
 
 function initModelChips() {
   const container = document.getElementById('model-chips');
-  let currentProvider = '';
-  MODELS.forEach(m => {
-    if (m.provider !== currentProvider) {
-      if (currentProvider !== '') { const br = document.createElement('div'); br.className='w-full'; container.appendChild(br); }
-      const label = document.createElement('div');
-      label.className = 'w-full text-xs text-gray-500 mt-1 mb-0.5';
-      label.textContent = m.provider;
-      container.appendChild(label);
-      currentProvider = m.provider;
-    }
-    const chip = document.createElement('button');
-    chip.className = `model-chip text-xs px-3 py-1.5 rounded-full border cursor-pointer ${selectedModels.has(m.id) ? 'selected border-brand-500' : 'border-gray-700 text-gray-400'}`;
-    chip.textContent = m.name;
-    chip.dataset.id = m.id;
-    chip.onclick = () => toggleModel(m.id, chip);
-    container.appendChild(chip);
+  const byProvider = MODELS.reduce((acc, m) => { (acc[m.provider] ||= []).push(m); return acc; }, {});
+  container.innerHTML = '';
+  Object.entries(byProvider).forEach(([provider, models]) => {
+    const group = document.createElement('div');
+    const header = document.createElement('div');
+    header.className = 'text-[10px] uppercase tracking-[0.16em] text-ink-500 font-medium mb-1.5';
+    header.textContent = provider;
+    group.appendChild(header);
+    const chips = document.createElement('div');
+    chips.className = 'flex flex-wrap gap-1.5';
+    models.forEach(m => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip' + (selectedModels.has(m.id) ? ' selected' : '');
+      chip.textContent = m.name;
+      chip.dataset.id = m.id;
+      chip.setAttribute('aria-pressed', selectedModels.has(m.id) ? 'true' : 'false');
+      chip.onclick = () => toggleModel(m.id, chip);
+      chips.appendChild(chip);
+    });
+    group.appendChild(chips);
+    container.appendChild(group);
   });
+}
+
+function updateModelCount() {
+  const n = selectedModels.size;
+  const el = document.getElementById('model-count');
+  el.textContent = n === 0 ? 'aucun sélectionné' : n + (n > 1 ? ' sélectionnés' : ' sélectionné');
 }
 
 function toggleModel(id, chip) {
   if (selectedModels.has(id)) {
     selectedModels.delete(id);
-    chip.classList.remove('selected','border-brand-500');
-    chip.classList.add('border-gray-700','text-gray-400');
+    chip.classList.remove('selected');
+    chip.setAttribute('aria-pressed', 'false');
   } else {
     selectedModels.add(id);
-    chip.classList.add('selected','border-brand-500');
-    chip.classList.remove('border-gray-700','text-gray-400');
+    chip.classList.add('selected');
+    chip.setAttribute('aria-pressed', 'true');
   }
+  updateModelCount();
   calculate();
+}
+
+function moveTabIndicator() {
+  const indicator = document.getElementById('tab-indicator');
+  const btn = document.getElementById('tab-' + activeTab);
+  if (!btn || !indicator) return;
+  const parent = btn.parentElement;
+  const parentRect = parent.getBoundingClientRect();
+  const btnRect = btn.getBoundingClientRect();
+  indicator.style.left = (btnRect.left - parentRect.left) + 'px';
+  indicator.style.width = btnRect.width + 'px';
 }
 
 function switchTab(tab) {
   activeTab = tab;
-  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
-  document.getElementById('tab-'+tab).classList.remove('tab-inactive');
-  document.getElementById('tab-'+tab).classList.add('tab-active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.setAttribute('aria-selected', 'false'));
+  document.getElementById('tab-' + tab).setAttribute('aria-selected', 'true');
   document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
-  document.getElementById('panel-'+tab).classList.remove('hidden');
+  document.getElementById('panel-' + tab).classList.remove('hidden');
+  moveTabIndicator();
   calculate();
 }
 
-function sync(id) { document.getElementById(id+'-num').value = document.getElementById(id).value; }
-function syncNum(id) {
-  const s = document.getElementById(id), n = document.getElementById(id+'-num');
-  s.value = Math.min(Math.max(n.value, s.min), s.max);
+function updateSliderFill(slider) {
+  const min = parseFloat(slider.min), max = parseFloat(slider.max), v = parseFloat(slider.value);
+  const pct = ((v - min) / (max - min)) * 100;
+  slider.style.setProperty('--pct', pct + '%');
 }
-function val(id) { return parseFloat(document.getElementById(id+'-num').value) || 0; }
+
+function sync(id) {
+  const s = document.getElementById(id), n = document.getElementById(id + '-num');
+  n.value = s.value;
+  updateSliderFill(s);
+}
+function syncNum(id) {
+  const s = document.getElementById(id), n = document.getElementById(id + '-num');
+  s.value = Math.min(Math.max(parseFloat(n.value) || s.min, s.min), s.max);
+  updateSliderFill(s);
+}
+function val(id) { return parseFloat(document.getElementById(id + '-num').value) || 0; }
 function checked(id) { return document.getElementById(id).checked; }
 
 function computeRAG(model) {
@@ -310,74 +487,123 @@ function computeChatbot(model) {
   return { monthlyCost, costPerRequest: users > 0 ? monthlyCost / users : 0, monthlyRequests: users };
 }
 
-function fmtCurrency(v, sym) {
-  if (v < 0.001) return sym + v.toFixed(6);
-  if (v < 0.01) return sym + v.toFixed(4);
-  if (v < 1) return sym + v.toFixed(3);
-  if (v < 100) return sym + v.toFixed(2);
-  return sym + Math.round(v).toLocaleString('fr-FR');
+function fmtMoney(v) {
+  if (!isFinite(v)) return '—';
+  if (v < 0.001) return v.toFixed(6);
+  if (v < 0.01) return v.toFixed(4);
+  if (v < 1) return v.toFixed(3);
+  if (v < 100) return v.toFixed(2);
+  return Math.round(v).toLocaleString('fr-FR');
 }
 
 function getLatency(model) {
   const b = model.latency;
   if (activeTab === 'rag') {
-    if (b === 'very-fast') return { label:'~1-2s', badge:'Rapide', css:'text-green-400' };
-    if (b === 'fast') return { label:'~2-4s', badge:'Rapide', css:'text-blue-400' };
-    return { label:'~4-8s', badge:'Moyen', css:'text-yellow-400' };
+    if (b === 'very-fast') return { label:'~1–2s', tone:'fast' };
+    if (b === 'fast') return { label:'~2–4s', tone:'med' };
+    return { label:'~4–8s', tone:'slow' };
   }
   if (activeTab === 'extraction') {
-    if (b === 'very-fast') return { label:'~1-3s', badge:'Rapide', css:'text-green-400' };
-    if (b === 'fast') return { label:'~3-6s', badge:'Moyen', css:'text-blue-400' };
-    return { label:'~6-15s', badge:'Lent', css:'text-yellow-400' };
+    if (b === 'very-fast') return { label:'~1–3s', tone:'fast' };
+    if (b === 'fast') return { label:'~3–6s', tone:'med' };
+    return { label:'~6–15s', tone:'slow' };
   }
-  if (b === 'very-fast') return { label:'~0.5-1s', badge:'Très rapide', css:'text-green-400' };
-  if (b === 'fast') return { label:'~1-3s', badge:'Rapide', css:'text-blue-400' };
-  return { label:'~3-8s', badge:'Moyen', css:'text-yellow-400' };
+  if (b === 'very-fast') return { label:'~0.5–1s', tone:'fast' };
+  if (b === 'fast') return { label:'~1–3s', tone:'med' };
+  return { label:'~3–8s', tone:'slow' };
 }
 
-function reqLabel() { return activeTab==='rag'?'requête':activeTab==='extraction'?'document':'session'; }
+function reqLabel() { return activeTab === 'rag' ? 'requête' : activeTab === 'extraction' ? 'document' : 'session'; }
+
+function renderEmpty() {
+  return `<div class="sm:col-span-2 flex flex-col items-center justify-center text-center py-20 surface-flush" role="status">
+    <div class="w-11 h-11 rounded-xl bg-ink-900 border border-ink-800 flex items-center justify-center mb-4">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a8a94" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <p class="text-[14px] text-ink-200">Choisissez les modèles à comparer</p>
+    <p class="text-[13px] text-ink-500 mt-1">Sélectionnez-en au moins un dans le panneau de gauche pour lancer l'estimation.</p>
+  </div>`;
+}
 
 function calculate() {
   const container = document.getElementById('results');
+  const summary = document.getElementById('result-summary');
   const rate = parseFloat(document.getElementById('eur-rate').value) || 1.08;
   const models = MODELS.filter(m => selectedModels.has(m.id));
   if (!models.length) {
-    container.innerHTML = '<div class="sm:col-span-2 text-center py-16 text-gray-600"><p class="text-lg">Sélectionnez au moins un modèle pour voir les estimations</p></div>';
+    container.innerHTML = renderEmpty();
+    summary.textContent = '';
     return;
   }
   const results = models.map(model => {
-    const data = activeTab==='rag' ? computeRAG(model) : activeTab==='extraction' ? computeExtraction(model) : computeChatbot(model);
+    const data = activeTab === 'rag' ? computeRAG(model) : activeTab === 'extraction' ? computeExtraction(model) : computeChatbot(model);
     return { model, ...data };
-  }).sort((a,b) => a.monthlyCost - b.monthlyCost);
+  }).sort((a, b) => a.monthlyCost - b.monthlyCost);
+
   const cheapest = results[0].monthlyCost;
+  const dearest = results[results.length - 1].monthlyCost;
+  summary.textContent = results.length > 1
+    ? `${results.length} modèles comparés · écart ×${(dearest / Math.max(cheapest, 1e-9)).toFixed(1)}`
+    : `${results.length} modèle`;
+
+  const toneCls = { fast: 'text-emerald-300/90', med: 'text-ink-300', slow: 'text-accent-300' };
+
   container.innerHTML = results.map((r, i) => {
     const lat = getLatency(r.model);
     const eurM = r.monthlyCost / rate, eurR = r.costPerRequest / rate;
-    const isCheap = r.monthlyCost === cheapest && results.length > 1;
+    const isWinner = r.monthlyCost === cheapest && results.length > 1;
     const pct = cheapest > 0 ? ((r.monthlyCost - cheapest) / cheapest * 100) : 0;
-    return `<div class="result-card fade-in bg-gray-900 rounded-2xl p-5 border ${isCheap?'border-green-500/40':'border-gray-800'} relative" style="animation-delay:${i*60}ms">
-      ${isCheap?'<div class="absolute -top-2.5 right-4 bg-green-500/20 text-green-400 text-xs px-2.5 py-0.5 rounded-full border border-green-500/30 font-medium">Le moins cher</div>':''}
-      <div class="flex items-start justify-between mb-4">
-        <div><div class="text-xs text-gray-500 uppercase tracking-wider">${r.model.provider}</div><div class="text-base font-semibold text-gray-100">${r.model.name}</div></div>
-        <div class="${lat.css} text-xs font-medium bg-gray-800 px-2.5 py-1 rounded-full">${lat.badge} ${lat.label}</div>
+    return `<article class="result-card reveal ${isWinner ? 'winner' : ''}" style="animation-delay:${i * 50}ms">
+      <header class="flex items-start justify-between mb-5">
+        <div class="min-w-0">
+          <div class="text-[10px] uppercase tracking-[0.16em] text-ink-500 font-medium">${r.model.provider}</div>
+          <h3 class="text-[15px] font-semibold text-ink-50 mt-0.5 truncate">${r.model.name}</h3>
+        </div>
+        ${isWinner ? `<span class="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em] text-emerald-300 bg-emerald-400/10 border border-emerald-400/20 px-2 py-1 rounded-md">Moins cher</span>` : ''}
+      </header>
+      <div class="mb-4">
+        <div class="flex items-baseline gap-2">
+          <span class="font-display text-[44px] leading-none tracking-[-0.02em] text-ink-50 tabular">${fmtMoney(eurM)}<span class="text-accent-400">€</span></span>
+        </div>
+        <div class="mt-2 flex items-center gap-2 text-[12px] text-ink-500 tabular">
+          <span>$${fmtMoney(r.monthlyCost)}</span>
+          <span class="text-ink-700">·</span>
+          <span>par mois</span>
+          ${pct > 0 ? `<span class="text-ink-700">·</span><span>+${Math.round(pct)}% vs minimum</span>` : ''}
+        </div>
       </div>
-      <div class="space-y-3">
+      <dl class="grid grid-cols-3 gap-4 pt-4 border-t hairline">
         <div>
-          <div class="text-xs text-gray-500 mb-0.5">Coût mensuel estimé</div>
-          <div class="flex items-baseline gap-2"><span class="text-2xl font-bold text-white">${fmtCurrency(eurM,'')}€</span><span class="text-sm text-gray-500">${fmtCurrency(r.monthlyCost,'$')}</span></div>
-          ${pct>0?`<div class="text-xs text-gray-500 mt-0.5">+${Math.round(pct)}% vs le moins cher</div>`:''}
+          <dt class="text-[11px] text-ink-500 mb-1">Coût / ${reqLabel()}</dt>
+          <dd class="text-[13px] text-ink-100 mono">${fmtMoney(eurR)}€</dd>
         </div>
-        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-gray-800">
-          <div><div class="text-xs text-gray-500">Coût / ${reqLabel()}</div><div class="text-sm font-medium text-gray-200">${fmtCurrency(eurR,'')}€</div><div class="text-xs text-gray-500">${fmtCurrency(r.costPerRequest,'$')}</div></div>
-          <div><div class="text-xs text-gray-500">Volume mensuel</div><div class="text-sm font-medium text-gray-200">${r.monthlyRequests.toLocaleString('fr-FR')}</div><div class="text-xs text-gray-500">${reqLabel()}s</div></div>
+        <div>
+          <dt class="text-[11px] text-ink-500 mb-1">Volume</dt>
+          <dd class="text-[13px] text-ink-100 mono">${r.monthlyRequests.toLocaleString('fr-FR')}</dd>
         </div>
-        <div class="pt-3 border-t border-gray-800"><div class="flex justify-between text-xs text-gray-500"><span>Input: ${fmtCurrency(r.model.input,'$')}/1M</span><span>Output: ${fmtCurrency(r.model.output,'$')}/1M</span></div></div>
+        <div>
+          <dt class="text-[11px] text-ink-500 mb-1">Latence</dt>
+          <dd class="text-[13px] ${toneCls[lat.tone]} mono">${lat.label}</dd>
+        </div>
+      </dl>
+      <div class="mt-4 pt-3 border-t hairline flex items-center justify-between text-[11px] text-ink-500 mono">
+        <span>in $${fmtMoney(r.model.input)} / 1M</span>
+        <span>out $${fmtMoney(r.model.output)} / 1M</span>
       </div>
-    </div>`;
+    </article>`;
   }).join('');
 }
 
+function initSliders() {
+  document.querySelectorAll('input[type=range]').forEach(updateSliderFill);
+}
+
+window.addEventListener('resize', moveTabIndicator);
+
 initModelChips();
+updateModelCount();
+initSliders();
+requestAnimationFrame(moveTabIndicator);
 calculate();
 </script>
 </body>
