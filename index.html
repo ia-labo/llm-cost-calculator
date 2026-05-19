@@ -4,223 +4,380 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calculateur de coûts LLM — IALab</title>
+<meta name="description" content="Estimez et comparez le coût mensuel de vos projets LLM (RAG, extraction, chatbot) en fonction des modèles et de votre volume d'usage.">
+<meta name="theme-color" content="#f3f3f3">
+<meta property="og:title" content="Calculateur de coûts LLM — IALab">
+<meta property="og:description" content="Estimez et comparez le coût mensuel de vos projets LLM selon le type d'usage et les modèles.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316163f'/%3E%3Ctext x='50%25' y='62%25' text-anchor='middle' font-family='Georgia,serif' font-size='13' font-style='italic' font-weight='300' fill='%23d2be8f'%3EIA%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {
-  darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Montserrat', 'system-ui', 'sans-serif'],
+        display: ['Merriweather', 'Georgia', 'serif'],
+        round: ['"Varela Round"', 'Montserrat', 'sans-serif'],
+      },
       colors: {
-        brand: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81' }
+        navy:    { 950:'#0e0e2a', 900:'#16163f', 800:'#1f1f4f', 700:'#2d2d63', 600:'#414163', 500:'#5e5e7a' },
+        ink:     { 900:'#16163f', 700:'#414163', 600:'#4a4a4a', 500:'#6c6b7d', 400:'#9a9aae', 300:'#b8b8c4', 200:'#d8d8de', 150:'#e9e9e9', 100:'#f3f3f3', 50:'#fafafb', 0:'#ffffff' },
+        gold:    { 50:'#faf6ec', 100:'#f1e8d0', 200:'#e6d6ad', 300:'#dcc89a', 400:'#d2be8f', 500:'#bca878', 600:'#a08e62', 700:'#7d6f4d' },
       }
     }
   }
 }
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-  body { font-family: 'Inter', system-ui, sans-serif; }
-  .tab-active { border-color: #6366f1; color: #a5b4fc; background: rgba(99,102,241,0.1); }
-  .tab-inactive { border-color: transparent; color: #9ca3af; }
-  .tab-inactive:hover { color: #d1d5db; border-color: #4b5563; }
-  input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: #374151; outline: none; }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid #818cf8; }
-  input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid #818cf8; }
-  .toggle-bg { transition: background-color 0.2s; }
-  .toggle-dot { transition: transform 0.2s; }
-  input:checked + .toggle-bg { background-color: #6366f1; }
-  input:checked + .toggle-bg .toggle-dot { transform: translateX(100%); }
-  .card-glow { box-shadow: 0 0 0 1px rgba(99,102,241,0.1), 0 4px 24px rgba(0,0,0,0.3); }
-  .result-card { transition: all 0.3s ease; }
-  .result-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
-  .model-chip { transition: all 0.15s ease; }
-  .model-chip.selected { background: rgba(99,102,241,0.2); border-color: #6366f1; color: #a5b4fc; }
-  .model-chip:not(.selected):hover { border-color: #6b7280; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .fade-in { animation: fadeIn 0.3s ease forwards; }
-  .number-input::-webkit-inner-spin-button,
-  .number-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-  .number-input { -moz-appearance: textfield; }
+  @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&family=Montserrat:wght@300;400;500;600;700&family=Varela+Round&display=swap');
+
+  html { color-scheme: light; }
+  body {
+    font-family: 'Montserrat', system-ui, sans-serif;
+    background: #f3f3f3;
+    color: #4a4a4a;
+    font-feature-settings: 'ss01';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle warm wash behind the header — anchors the page in the brand palette */
+  body::before {
+    content: '';
+    position: fixed; top: -240px; left: 50%;
+    transform: translateX(-50%);
+    width: 1100px; height: 700px;
+    background: radial-gradient(ellipse at center, rgba(210,190,143,0.18) 0%, rgba(210,190,143,0) 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* Very faint grain — texture without noise */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.09 0 0 0 0 0.09 0 0 0 0 0.25 0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 1;
+  }
+  main, header, footer { position: relative; z-index: 2; }
+
+  .font-display { font-family: 'Merriweather', Georgia, serif; }
+  .font-round { font-family: 'Varela Round', Montserrat, sans-serif; }
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Focus rings — champagne ring on light surfaces */
+  :focus-visible { outline: 2px solid #d2be8f; outline-offset: 2px; border-radius: 6px; }
+  button:focus-visible, input:focus-visible, label:focus-visible { outline-offset: 3px; }
+
+  /* Range slider — champagne fill on cream track */
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    height: 3px;
+    background: linear-gradient(to right, #d2be8f 0%, #d2be8f var(--pct,0%), #e9e9e9 var(--pct,0%), #e9e9e9 100%);
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #16163f;
+    border: 0;
+    box-shadow: 0 0 0 4px rgba(22,22,63,0.06), 0 1px 3px rgba(22,22,63,0.2);
+    cursor: grab;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.18); box-shadow: 0 0 0 6px rgba(210,190,143,0.25), 0 2px 6px rgba(22,22,63,0.25); }
+  input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.1); }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; background: #16163f; border: 0;
+    box-shadow: 0 0 0 4px rgba(22,22,63,0.06), 0 1px 3px rgba(22,22,63,0.2);
+    transition: transform 0.18s ease;
+  }
+  input[type=range]:hover::-moz-range-thumb { transform: scale(1.18); }
+
+  /* Number inputs */
+  .num-input::-webkit-inner-spin-button,
+  .num-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .num-input { -moz-appearance: textfield; }
+  .num-input { transition: border-color 0.18s ease, background-color 0.18s ease; color: #16163f; }
+  .num-input:focus { outline: none; border-color: #d2be8f; background-color: #fffefe; }
+
+  /* Tabs — segmented control with sliding indicator */
+  .tabs { position: relative; display: inline-flex; padding: 4px; background: #ffffff; border: 1px solid #e9e9e9; border-radius: 10px; box-shadow: 0 1px 2px rgba(22,22,63,0.04); }
+  .tab-btn { position: relative; z-index: 1; padding: 8px 16px; font-size: 13px; font-weight: 500; color: #6c6b7d; border-radius: 7px; transition: color 0.18s ease; display: inline-flex; align-items: center; gap: 7px; letter-spacing: 0.01em; }
+  .tab-btn:hover { color: #16163f; }
+  .tab-btn[aria-selected="true"] { color: #ffffff; }
+  .tab-indicator { position: absolute; top: 4px; bottom: 4px; background: #16163f; border-radius: 7px; box-shadow: 0 2px 6px rgba(22,22,63,0.18); transition: left 0.28s cubic-bezier(0.32,0.72,0,1), width 0.28s cubic-bezier(0.32,0.72,0,1); z-index: 0; }
+
+  /* Surfaces */
+  .surface { background: #ffffff; border: 1px solid #e9e9e9; border-radius: 14px; box-shadow: 0 15px 30px -18px rgba(22,22,63,0.10), 0 1px 2px rgba(22,22,63,0.03); }
+  .surface-flush { background: rgba(255,255,255,0.6); border: 1px solid #e9e9e9; border-radius: 12px; }
+
+  /* Toggle */
+  .toggle-bg { transition: background-color 0.2s ease; background: #d8d8de; }
+  .toggle-dot { transition: transform 0.22s cubic-bezier(0.32,0.72,0,1); box-shadow: 0 1px 3px rgba(22,22,63,0.2); }
+  input:checked + .toggle-bg { background-color: #16163f; }
+  input:checked + .toggle-bg .toggle-dot { transform: translateX(20px); background: #d2be8f; }
+
+  /* Model chips */
+  .chip { font-size: 12.5px; padding: 6px 12px; border-radius: 8px; border: 1px solid #e9e9e9; background: #ffffff; color: #4a4a4a; cursor: pointer; transition: all 0.16s ease; line-height: 1.2; font-weight: 500; }
+  .chip:hover { border-color: #d8d8de; background: #fafafb; color: #16163f; }
+  .chip.selected { background: #16163f; border-color: #16163f; color: #d2be8f; }
+  .chip.selected:hover { background: #1f1f4f; color: #dcc89a; }
+
+  /* Result cards */
+  .result-card { background: #ffffff; border: 1px solid #e9e9e9; border-radius: 16px; padding: 22px; transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease; position: relative; overflow: hidden; box-shadow: 0 15px 30px -22px rgba(22,22,63,0.10), 0 1px 2px rgba(22,22,63,0.03); }
+  .result-card:hover { transform: translateY(-2px); box-shadow: 0 22px 40px -22px rgba(22,22,63,0.22), 0 2px 4px rgba(22,22,63,0.04); border-color: #d8d8de; }
+
+  /* Winner: navy field, champagne accents — inversion that makes it the visual anchor */
+  .result-card.winner { background: linear-gradient(170deg, #16163f 0%, #1d1d4a 100%); border-color: #16163f; box-shadow: 0 22px 40px -16px rgba(22,22,63,0.4); color: #ededf2; }
+  .result-card.winner::before { content: ''; position: absolute; top: 0; left: 18px; right: 18px; height: 2px; background: linear-gradient(90deg, transparent, #d2be8f, transparent); }
+  .result-card.winner:hover { box-shadow: 0 28px 50px -18px rgba(22,22,63,0.5); }
+
+  /* Reveal */
+  @keyframes reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .reveal { animation: reveal 0.42s cubic-bezier(0.32,0.72,0,1) both; }
+
+  .hairline { border-color: #e9e9e9; }
+  .hairline-dark { border-color: rgba(210,190,143,0.18); }
+
+  /* Selection */
+  ::selection { background: rgba(210,190,143,0.4); color: #16163f; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d8d8de; border-radius: 999px; border: 2px solid #f3f3f3; }
+  ::-webkit-scrollbar-thumb:hover { background: #b8b8c4; }
+
+  /* Section heading style — Montserrat bold uppercase tag */
+  .eyebrow { font-size: 11px; font-weight: 600; color: #d2be8f; letter-spacing: 0.16em; text-transform: uppercase; }
 </style>
 </head>
-<body class="dark bg-gray-950 text-gray-100 min-h-screen">
+<body class="min-h-[100dvh]">
 
-<div class="max-w-6xl mx-auto px-4 py-8 sm:py-12">
-  <header class="text-center mb-10">
-    <div class="inline-flex items-center gap-3 mb-4">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-lg">IA</div>
-      <span class="text-xl font-semibold text-gray-300">IALab</span>
+<div class="max-w-6xl mx-auto px-5 sm:px-8 pt-10 sm:pt-14 pb-16">
+
+  <header class="mb-10 sm:mb-14">
+    <a href="https://ia-lab.fr" target="_blank" rel="noopener" class="inline-flex items-center gap-2.5 group">
+      <span class="w-8 h-8 rounded-lg bg-navy-900 flex items-center justify-center">
+        <span class="font-display italic text-gold-400 text-[14px] leading-none">IA</span>
+      </span>
+      <span class="text-[13px] font-semibold tracking-[0.04em] uppercase text-navy-900 group-hover:text-gold-500 transition-colors">IALab</span>
+    </a>
+    <div class="mt-8 sm:mt-10 grid sm:grid-cols-12 gap-x-8 items-end">
+      <h1 class="sm:col-span-8 font-display font-light text-[44px] sm:text-[60px] leading-[1.1] tracking-[0.005em] text-balance text-navy-900">
+        Calculateur de <em class="italic font-normal text-gold-500">coûts</em> LLM
+      </h1>
+      <p class="sm:col-span-4 mt-5 sm:mt-0 text-[16px] leading-[1.55] text-ink-600 max-w-md text-pretty">
+        Estimez le coût mensuel d'un projet d'IA générative selon l'usage, le volume et les modèles que vous comparez.
+      </p>
     </div>
-    <h1 class="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent mb-2">Calculateur de coûts LLM</h1>
-    <p class="text-gray-400 max-w-xl mx-auto">Estimez le coût mensuel de vos projets IA selon le type d'usage et les modèles choisis.</p>
   </header>
 
-  <div class="flex justify-center mb-8">
-    <div class="inline-flex gap-1 p-1 bg-gray-900 rounded-xl border border-gray-800">
-      <button onclick="switchTab('rag')" id="tab-rag" class="tab-btn px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium border-b-2 transition-all tab-active">
-        <span class="hidden sm:inline">🔍 </span>RAG
+  <nav class="mb-8 sm:mb-10" aria-label="Type d'usage">
+    <div class="tabs" role="tablist">
+      <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
+      <button onclick="switchTab('rag')" id="tab-rag" role="tab" aria-selected="true" class="tab-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+        RAG
       </button>
-      <button onclick="switchTab('extraction')" id="tab-extraction" class="tab-btn px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium border-b-2 transition-all tab-inactive">
-        <span class="hidden sm:inline">📄 </span>Extraction
+      <button onclick="switchTab('extraction')" id="tab-extraction" role="tab" aria-selected="false" class="tab-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        Extraction
       </button>
-      <button onclick="switchTab('chatbot')" id="tab-chatbot" class="tab-btn px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium border-b-2 transition-all tab-inactive">
-        <span class="hidden sm:inline">💬 </span>Chatbot
+      <button onclick="switchTab('chatbot')" id="tab-chatbot" role="tab" aria-selected="false" class="tab-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
+        Chatbot
       </button>
     </div>
-  </div>
+  </nav>
 
-  <div class="grid lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-1 space-y-6">
-      <div id="panel-rag" class="panel bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow">
-        <h2 class="text-lg font-semibold text-brand-300 mb-5">Paramètres RAG</h2>
+  <main class="grid lg:grid-cols-12 gap-6 sm:gap-7">
+
+    <aside class="lg:col-span-5 space-y-5">
+
+      <section id="panel-rag" class="panel surface p-6 sm:p-7">
+        <div class="flex items-baseline justify-between mb-5">
+          <h2 class="text-[15px] font-semibold text-navy-900">Paramètres RAG</h2>
+          <span class="eyebrow">Retrieval</span>
+        </div>
         <div class="space-y-5">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Requêtes par jour</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="rag-requests-num">Requêtes / jour</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="5000" value="100" id="rag-requests" oninput="sync('rag-requests');calculate()" class="flex-1">
-              <input type="number" min="1" max="50000" value="100" id="rag-requests-num" oninput="syncNum('rag-requests');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="50000" value="100" id="rag-requests-num" oninput="syncNum('rag-requests');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Documents indexés</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="rag-docs-num">Documents indexés</label>
             <div class="flex items-center gap-3">
               <input type="range" min="10" max="100000" value="1000" step="10" id="rag-docs" oninput="sync('rag-docs');calculate()" class="flex-1">
-              <input type="number" min="1" max="1000000" value="1000" id="rag-docs-num" oninput="syncNum('rag-docs');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="1000000" value="1000" id="rag-docs-num" oninput="syncNum('rag-docs');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Taille moyenne des documents (pages)</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="rag-pages-num">Taille moyenne (pages)</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="200" value="10" id="rag-pages" oninput="sync('rag-pages');calculate()" class="flex-1">
-              <input type="number" min="1" max="1000" value="10" id="rag-pages-num" oninput="syncNum('rag-pages');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="1000" value="10" id="rag-pages-num" oninput="syncNum('rag-pages');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Chunks récupérés par requête</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="rag-chunks-num">Chunks par requête</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="20" value="5" id="rag-chunks" oninput="sync('rag-chunks');calculate()" class="flex-1">
-              <input type="number" min="1" max="50" value="5" id="rag-chunks-num" oninput="syncNum('rag-chunks');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="50" value="5" id="rag-chunks-num" oninput="syncNum('rag-chunks');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div id="panel-extraction" class="panel bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow hidden">
-        <h2 class="text-lg font-semibold text-brand-300 mb-5">Paramètres Extraction</h2>
+      <section id="panel-extraction" class="panel surface p-6 sm:p-7 hidden">
+        <div class="flex items-baseline justify-between mb-5">
+          <h2 class="text-[15px] font-semibold text-navy-900">Paramètres Extraction</h2>
+          <span class="eyebrow">Structuré</span>
+        </div>
         <div class="space-y-5">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Documents par mois</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="ext-docs-num">Documents / mois</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="10000" value="500" id="ext-docs" oninput="sync('ext-docs');calculate()" class="flex-1">
-              <input type="number" min="1" max="100000" value="500" id="ext-docs-num" oninput="syncNum('ext-docs');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="100000" value="500" id="ext-docs-num" oninput="syncNum('ext-docs');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Pages par document</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="ext-pages-num">Pages / document</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="100" value="5" id="ext-pages" oninput="sync('ext-pages');calculate()" class="flex-1">
-              <input type="number" min="1" max="500" value="5" id="ext-pages-num" oninput="syncNum('ext-pages');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="500" value="5" id="ext-pages-num" oninput="syncNum('ext-pages');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Champs à extraire</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="ext-fields-num">Champs à extraire</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="50" value="10" id="ext-fields" oninput="sync('ext-fields');calculate()" class="flex-1">
-              <input type="number" min="1" max="100" value="10" id="ext-fields-num" oninput="syncNum('ext-fields');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="100" value="10" id="ext-fields-num" oninput="syncNum('ext-fields');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-400">Vision (images PDF)</label>
+          <div class="flex items-center justify-between pt-1">
+            <label for="ext-vision" class="text-[13px] text-ink-600 font-medium">Mode vision (PDF en image)</label>
             <label class="relative inline-block w-11 h-6 cursor-pointer">
               <input type="checkbox" id="ext-vision" onchange="calculate()" class="sr-only peer">
-              <div class="toggle-bg w-11 h-6 bg-gray-700 rounded-full peer-checked:bg-brand-500">
-                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow"></div>
+              <div class="toggle-bg w-11 h-6 rounded-full">
+                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full"></div>
               </div>
             </label>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div id="panel-chatbot" class="panel bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow hidden">
-        <h2 class="text-lg font-semibold text-brand-300 mb-5">Paramètres Chatbot</h2>
+      <section id="panel-chatbot" class="panel surface p-6 sm:p-7 hidden">
+        <div class="flex items-baseline justify-between mb-5">
+          <h2 class="text-[15px] font-semibold text-navy-900">Paramètres Chatbot</h2>
+          <span class="eyebrow">Conversation</span>
+        </div>
         <div class="space-y-5">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Utilisateurs par mois</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="chat-users-num">Utilisateurs / mois</label>
             <div class="flex items-center gap-3">
               <input type="range" min="10" max="50000" value="1000" step="10" id="chat-users" oninput="sync('chat-users');calculate()" class="flex-1">
-              <input type="number" min="1" max="500000" value="1000" id="chat-users-num" oninput="syncNum('chat-users');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="500000" value="1000" id="chat-users-num" oninput="syncNum('chat-users');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Messages par session</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="chat-messages-num">Messages / session</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="50" value="8" id="chat-messages" oninput="sync('chat-messages');calculate()" class="flex-1">
-              <input type="number" min="1" max="200" value="8" id="chat-messages-num" oninput="syncNum('chat-messages');calculate()" class="number-input w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="1" max="200" value="8" id="chat-messages-num" oninput="syncNum('chat-messages');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1.5">Contexte moyen (tokens)</label>
+          <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="chat-context-num">Contexte moyen (tokens)</label>
             <div class="flex items-center gap-3">
               <input type="range" min="500" max="32000" value="4000" step="500" id="chat-context" oninput="sync('chat-context');calculate()" class="flex-1">
-              <input type="number" min="100" max="128000" value="4000" id="chat-context-num" oninput="syncNum('chat-context');calculate()" class="number-input w-24 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right focus:border-brand-500 focus:outline-none">
+              <input type="number" min="100" max="128000" value="4000" id="chat-context-num" oninput="syncNum('chat-context');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
             </div>
           </div>
-          <div class="flex items-center justify-between">
-            <label class="text-sm text-gray-400">Mémoire activée</label>
+          <div class="flex items-center justify-between pt-1">
+            <label for="chat-memory" class="text-[13px] text-ink-600 font-medium">Mémoire conversationnelle</label>
             <label class="relative inline-block w-11 h-6 cursor-pointer">
               <input type="checkbox" id="chat-memory" onchange="calculate()" class="sr-only peer">
-              <div class="toggle-bg w-11 h-6 bg-gray-700 rounded-full peer-checked:bg-brand-500">
-                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow"></div>
+              <div class="toggle-bg w-11 h-6 rounded-full">
+                <div class="toggle-dot absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full"></div>
               </div>
             </label>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 card-glow">
-        <h2 class="text-lg font-semibold text-brand-300 mb-4">Modèles à comparer</h2>
-        <div id="model-chips" class="flex flex-wrap gap-2"></div>
-      </div>
-
-      <div class="bg-gray-900 rounded-2xl p-4 border border-gray-800 card-glow">
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-400">Taux EUR/USD</span>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-500">1€ =</span>
-            <input type="number" step="0.01" min="0.5" max="2" value="1.08" id="eur-rate" oninput="calculate()" class="number-input w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-right focus:border-brand-500 focus:outline-none">
-            <span class="text-xs text-gray-500">$</span>
-          </div>
+      <section class="surface p-6 sm:p-7">
+        <div class="flex items-baseline justify-between mb-4">
+          <h2 class="text-[15px] font-semibold text-navy-900">Modèles à comparer</h2>
+          <span id="model-count" class="text-[11px] tabular text-ink-500">2 sélectionnés</span>
         </div>
-      </div>
-    </div>
+        <div id="model-chips" class="space-y-3"></div>
+      </section>
 
-    <div class="lg:col-span-2">
-      <div id="results" class="grid sm:grid-cols-2 gap-4">
-        <div class="sm:col-span-2 text-center py-16 text-gray-600">
-          <p class="text-lg">Sélectionnez au moins un modèle pour voir les estimations</p>
+      <section class="surface-flush px-5 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-[12px] text-ink-500 font-medium">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Taux de change</span>
         </div>
-      </div>
-    </div>
-  </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[12px] text-ink-500">1€</span>
+          <input type="number" step="0.01" min="0.5" max="2" value="1.08" id="eur-rate" oninput="calculate()" class="num-input tabular w-16 bg-white border border-ink-150 rounded-md px-2 py-1 text-[12px] text-right">
+          <span class="text-[12px] text-ink-500">$</span>
+        </div>
+      </section>
 
-  <footer class="mt-12 text-center text-xs text-gray-600">
-    <p>Les estimations sont basées sur les tarifs publics des fournisseurs. Coûts réels susceptibles de varier.</p>
-    <p class="mt-1">© 2026 IALab — <a href="https://ia-lab.fr" target="_blank" class="text-brand-400 hover:text-brand-300">ia-lab.fr</a></p>
+    </aside>
+
+    <section class="lg:col-span-7" aria-live="polite">
+      <div class="flex items-baseline justify-between mb-5 px-1">
+        <h2 class="text-[15px] font-semibold text-navy-900">Estimations</h2>
+        <span id="result-summary" class="text-[12px] text-ink-500"></span>
+      </div>
+      <div id="results" class="grid sm:grid-cols-2 gap-4"></div>
+    </section>
+
+  </main>
+
+  <footer class="mt-16 pt-8 border-t hairline grid sm:grid-cols-2 gap-3 text-[12px] text-ink-500">
+    <p class="text-pretty">Estimations indicatives basées sur les tarifs publics affichés par les fournisseurs. Les coûts réels peuvent varier selon le routage, le caching et les remises de volume.</p>
+    <p class="sm:text-right">© 2026 IALab · <a href="https://ia-lab.fr" target="_blank" rel="noopener" class="text-navy-900 hover:text-gold-500 transition-colors underline decoration-ink-200 underline-offset-2">ia-lab.fr</a></p>
   </footer>
 </div>
 
 <script>
+// Prix publics par 1M de tokens (USD) — vérifiés mai 2026.
+// Sources : openai.com/api/pricing, claude.com/pricing, mistral.ai/pricing
 const MODELS = [
-  { id:'gpt4o', provider:'OpenAI', name:'GPT-4o', input:2.50, output:10.00, latency:'fast' },
-  { id:'gpt4o-mini', provider:'OpenAI', name:'GPT-4o-mini', input:0.15, output:0.60, latency:'very-fast' },
-  { id:'o3-mini', provider:'OpenAI', name:'o3-mini', input:1.10, output:4.40, latency:'fast' },
-  { id:'claude35sonnet', provider:'Anthropic', name:'Claude 3.5 Sonnet', input:3.00, output:15.00, latency:'fast' },
-  { id:'claude37sonnet', provider:'Anthropic', name:'Claude 3.7 Sonnet', input:3.00, output:15.00, latency:'fast' },
-  { id:'claude3haiku', provider:'Anthropic', name:'Claude 3 Haiku', input:0.25, output:1.25, latency:'very-fast' },
-  { id:'claude35haiku', provider:'Anthropic', name:'Claude 3.5 Haiku', input:0.80, output:4.00, latency:'very-fast' },
-  { id:'mistral-large', provider:'Mistral', name:'Mistral Large', input:2.00, output:6.00, latency:'fast' },
-  { id:'mistral-small', provider:'Mistral', name:'Mistral Small', input:0.20, output:0.60, latency:'very-fast' },
-  { id:'llama3-70b', provider:'Self-hosted', name:'Llama 3 70B', input:0.50, output:0.50, latency:'medium' },
+  // OpenAI
+  { id:'gpt5',          provider:'OpenAI',    name:'GPT-5',            input:1.25, output:10.00, latency:'fast' },
+  { id:'gpt5-mini',     provider:'OpenAI',    name:'GPT-5 mini',       input:0.25, output:2.00,  latency:'very-fast' },
+  { id:'gpt4.1',        provider:'OpenAI',    name:'GPT-4.1',          input:2.00, output:8.00,  latency:'fast' },
+  { id:'gpt4.1-mini',   provider:'OpenAI',    name:'GPT-4.1 mini',     input:0.40, output:1.60,  latency:'very-fast' },
+  { id:'gpt4.1-nano',   provider:'OpenAI',    name:'GPT-4.1 nano',     input:0.10, output:0.40,  latency:'very-fast' },
+  { id:'gpt4o',         provider:'OpenAI',    name:'GPT-4o',           input:2.50, output:10.00, latency:'fast' },
+  { id:'gpt4o-mini',    provider:'OpenAI',    name:'GPT-4o mini',      input:0.15, output:0.60,  latency:'very-fast' },
+
+  // Anthropic
+  { id:'opus-4-7',      provider:'Anthropic', name:'Claude Opus 4.7',     input:5.00, output:25.00, latency:'medium' },
+  { id:'sonnet-4-6',    provider:'Anthropic', name:'Claude Sonnet 4.6',   input:3.00, output:15.00, latency:'fast' },
+  { id:'haiku-4-5',     provider:'Anthropic', name:'Claude Haiku 4.5',    input:1.00, output:5.00,  latency:'very-fast' },
+  { id:'haiku-3-5',     provider:'Anthropic', name:'Claude Haiku 3.5',    input:0.80, output:4.00,  latency:'very-fast' },
+
+  // Mistral
+  { id:'mistral-large-3',   provider:'Mistral', name:'Mistral Large 3',    input:2.00, output:6.00,  latency:'fast' },
+  { id:'mistral-medium-3',  provider:'Mistral', name:'Mistral Medium 3',   input:1.00, output:3.00,  latency:'fast' },
+  { id:'mistral-small-3-1', provider:'Mistral', name:'Mistral Small 3.1',  input:0.20, output:0.60,  latency:'very-fast' },
+  { id:'ministral-8b',      provider:'Mistral', name:'Ministral 8B',       input:0.10, output:0.10,  latency:'very-fast' },
+  { id:'ministral-3b',      provider:'Mistral', name:'Ministral 3B',       input:0.04, output:0.04,  latency:'very-fast' },
 ];
 
 const TOKENS_PER_PAGE = 800;
@@ -228,58 +385,93 @@ const TOKENS_PER_CHUNK = 256;
 const EMBEDDING_COST_PER_1M = 0.10;
 
 let activeTab = 'rag';
-let selectedModels = new Set(['gpt4o', 'claude35sonnet']);
+let selectedModels = new Set(['gpt5', 'sonnet-4-6', 'mistral-large-3']);
 
 function initModelChips() {
   const container = document.getElementById('model-chips');
-  let currentProvider = '';
-  MODELS.forEach(m => {
-    if (m.provider !== currentProvider) {
-      if (currentProvider !== '') { const br = document.createElement('div'); br.className='w-full'; container.appendChild(br); }
-      const label = document.createElement('div');
-      label.className = 'w-full text-xs text-gray-500 mt-1 mb-0.5';
-      label.textContent = m.provider;
-      container.appendChild(label);
-      currentProvider = m.provider;
-    }
-    const chip = document.createElement('button');
-    chip.className = `model-chip text-xs px-3 py-1.5 rounded-full border cursor-pointer ${selectedModels.has(m.id) ? 'selected border-brand-500' : 'border-gray-700 text-gray-400'}`;
-    chip.textContent = m.name;
-    chip.dataset.id = m.id;
-    chip.onclick = () => toggleModel(m.id, chip);
-    container.appendChild(chip);
+  const byProvider = MODELS.reduce((acc, m) => { (acc[m.provider] ||= []).push(m); return acc; }, {});
+  container.innerHTML = '';
+  Object.entries(byProvider).forEach(([provider, models]) => {
+    const group = document.createElement('div');
+    const header = document.createElement('div');
+    header.className = 'eyebrow mb-1.5';
+    header.textContent = provider;
+    group.appendChild(header);
+    const chips = document.createElement('div');
+    chips.className = 'flex flex-wrap gap-1.5';
+    models.forEach(m => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip' + (selectedModels.has(m.id) ? ' selected' : '');
+      chip.textContent = m.name;
+      chip.dataset.id = m.id;
+      chip.setAttribute('aria-pressed', selectedModels.has(m.id) ? 'true' : 'false');
+      chip.onclick = () => toggleModel(m.id, chip);
+      chips.appendChild(chip);
+    });
+    group.appendChild(chips);
+    container.appendChild(group);
   });
+}
+
+function updateModelCount() {
+  const n = selectedModels.size;
+  const el = document.getElementById('model-count');
+  el.textContent = n === 0 ? 'aucun sélectionné' : n + (n > 1 ? ' sélectionnés' : ' sélectionné');
 }
 
 function toggleModel(id, chip) {
   if (selectedModels.has(id)) {
     selectedModels.delete(id);
-    chip.classList.remove('selected','border-brand-500');
-    chip.classList.add('border-gray-700','text-gray-400');
+    chip.classList.remove('selected');
+    chip.setAttribute('aria-pressed', 'false');
   } else {
     selectedModels.add(id);
-    chip.classList.add('selected','border-brand-500');
-    chip.classList.remove('border-gray-700','text-gray-400');
+    chip.classList.add('selected');
+    chip.setAttribute('aria-pressed', 'true');
   }
+  updateModelCount();
   calculate();
+}
+
+function moveTabIndicator() {
+  const indicator = document.getElementById('tab-indicator');
+  const btn = document.getElementById('tab-' + activeTab);
+  if (!btn || !indicator) return;
+  const parent = btn.parentElement;
+  const parentRect = parent.getBoundingClientRect();
+  const btnRect = btn.getBoundingClientRect();
+  indicator.style.left = (btnRect.left - parentRect.left) + 'px';
+  indicator.style.width = btnRect.width + 'px';
 }
 
 function switchTab(tab) {
   activeTab = tab;
-  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
-  document.getElementById('tab-'+tab).classList.remove('tab-inactive');
-  document.getElementById('tab-'+tab).classList.add('tab-active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.setAttribute('aria-selected', 'false'));
+  document.getElementById('tab-' + tab).setAttribute('aria-selected', 'true');
   document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
-  document.getElementById('panel-'+tab).classList.remove('hidden');
+  document.getElementById('panel-' + tab).classList.remove('hidden');
+  moveTabIndicator();
   calculate();
 }
 
-function sync(id) { document.getElementById(id+'-num').value = document.getElementById(id).value; }
-function syncNum(id) {
-  const s = document.getElementById(id), n = document.getElementById(id+'-num');
-  s.value = Math.min(Math.max(n.value, s.min), s.max);
+function updateSliderFill(slider) {
+  const min = parseFloat(slider.min), max = parseFloat(slider.max), v = parseFloat(slider.value);
+  const pct = ((v - min) / (max - min)) * 100;
+  slider.style.setProperty('--pct', pct + '%');
 }
-function val(id) { return parseFloat(document.getElementById(id+'-num').value) || 0; }
+
+function sync(id) {
+  const s = document.getElementById(id), n = document.getElementById(id + '-num');
+  n.value = s.value;
+  updateSliderFill(s);
+}
+function syncNum(id) {
+  const s = document.getElementById(id), n = document.getElementById(id + '-num');
+  s.value = Math.min(Math.max(parseFloat(n.value) || s.min, s.min), s.max);
+  updateSliderFill(s);
+}
+function val(id) { return parseFloat(document.getElementById(id + '-num').value) || 0; }
 function checked(id) { return document.getElementById(id).checked; }
 
 function computeRAG(model) {
@@ -310,74 +502,132 @@ function computeChatbot(model) {
   return { monthlyCost, costPerRequest: users > 0 ? monthlyCost / users : 0, monthlyRequests: users };
 }
 
-function fmtCurrency(v, sym) {
-  if (v < 0.001) return sym + v.toFixed(6);
-  if (v < 0.01) return sym + v.toFixed(4);
-  if (v < 1) return sym + v.toFixed(3);
-  if (v < 100) return sym + v.toFixed(2);
-  return sym + Math.round(v).toLocaleString('fr-FR');
+function fmtMoney(v) {
+  if (!isFinite(v)) return '—';
+  if (v < 0.001) return v.toFixed(6);
+  if (v < 0.01) return v.toFixed(4);
+  if (v < 1) return v.toFixed(3);
+  if (v < 100) return v.toFixed(2);
+  return Math.round(v).toLocaleString('fr-FR');
 }
 
 function getLatency(model) {
   const b = model.latency;
   if (activeTab === 'rag') {
-    if (b === 'very-fast') return { label:'~1-2s', badge:'Rapide', css:'text-green-400' };
-    if (b === 'fast') return { label:'~2-4s', badge:'Rapide', css:'text-blue-400' };
-    return { label:'~4-8s', badge:'Moyen', css:'text-yellow-400' };
+    if (b === 'very-fast') return '~1–2s';
+    if (b === 'fast') return '~2–4s';
+    return '~4–8s';
   }
   if (activeTab === 'extraction') {
-    if (b === 'very-fast') return { label:'~1-3s', badge:'Rapide', css:'text-green-400' };
-    if (b === 'fast') return { label:'~3-6s', badge:'Moyen', css:'text-blue-400' };
-    return { label:'~6-15s', badge:'Lent', css:'text-yellow-400' };
+    if (b === 'very-fast') return '~1–3s';
+    if (b === 'fast') return '~3–6s';
+    return '~6–15s';
   }
-  if (b === 'very-fast') return { label:'~0.5-1s', badge:'Très rapide', css:'text-green-400' };
-  if (b === 'fast') return { label:'~1-3s', badge:'Rapide', css:'text-blue-400' };
-  return { label:'~3-8s', badge:'Moyen', css:'text-yellow-400' };
+  if (b === 'very-fast') return '~0.5–1s';
+  if (b === 'fast') return '~1–3s';
+  return '~3–8s';
 }
 
-function reqLabel() { return activeTab==='rag'?'requête':activeTab==='extraction'?'document':'session'; }
+function reqLabel() { return activeTab === 'rag' ? 'requête' : activeTab === 'extraction' ? 'document' : 'session'; }
+
+function renderEmpty() {
+  return `<div class="sm:col-span-2 flex flex-col items-center justify-center text-center py-20 surface-flush" role="status">
+    <div class="w-11 h-11 rounded-xl bg-white border border-ink-150 flex items-center justify-center mb-4">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d2be8f" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <p class="text-[14px] text-navy-900 font-semibold">Choisissez les modèles à comparer</p>
+    <p class="text-[13px] text-ink-500 mt-1 max-w-xs">Sélectionnez-en au moins un dans le panneau de gauche pour lancer l'estimation.</p>
+  </div>`;
+}
 
 function calculate() {
   const container = document.getElementById('results');
+  const summary = document.getElementById('result-summary');
   const rate = parseFloat(document.getElementById('eur-rate').value) || 1.08;
   const models = MODELS.filter(m => selectedModels.has(m.id));
   if (!models.length) {
-    container.innerHTML = '<div class="sm:col-span-2 text-center py-16 text-gray-600"><p class="text-lg">Sélectionnez au moins un modèle pour voir les estimations</p></div>';
+    container.innerHTML = renderEmpty();
+    summary.textContent = '';
     return;
   }
   const results = models.map(model => {
-    const data = activeTab==='rag' ? computeRAG(model) : activeTab==='extraction' ? computeExtraction(model) : computeChatbot(model);
+    const data = activeTab === 'rag' ? computeRAG(model) : activeTab === 'extraction' ? computeExtraction(model) : computeChatbot(model);
     return { model, ...data };
-  }).sort((a,b) => a.monthlyCost - b.monthlyCost);
+  }).sort((a, b) => a.monthlyCost - b.monthlyCost);
+
   const cheapest = results[0].monthlyCost;
+  const dearest = results[results.length - 1].monthlyCost;
+  summary.textContent = results.length > 1
+    ? `${results.length} modèles · écart ×${(dearest / Math.max(cheapest, 1e-9)).toFixed(1)}`
+    : `${results.length} modèle`;
+
   container.innerHTML = results.map((r, i) => {
     const lat = getLatency(r.model);
     const eurM = r.monthlyCost / rate, eurR = r.costPerRequest / rate;
-    const isCheap = r.monthlyCost === cheapest && results.length > 1;
+    const isWinner = r.monthlyCost === cheapest && results.length > 1;
     const pct = cheapest > 0 ? ((r.monthlyCost - cheapest) / cheapest * 100) : 0;
-    return `<div class="result-card fade-in bg-gray-900 rounded-2xl p-5 border ${isCheap?'border-green-500/40':'border-gray-800'} relative" style="animation-delay:${i*60}ms">
-      ${isCheap?'<div class="absolute -top-2.5 right-4 bg-green-500/20 text-green-400 text-xs px-2.5 py-0.5 rounded-full border border-green-500/30 font-medium">Le moins cher</div>':''}
-      <div class="flex items-start justify-between mb-4">
-        <div><div class="text-xs text-gray-500 uppercase tracking-wider">${r.model.provider}</div><div class="text-base font-semibold text-gray-100">${r.model.name}</div></div>
-        <div class="${lat.css} text-xs font-medium bg-gray-800 px-2.5 py-1 rounded-full">${lat.badge} ${lat.label}</div>
+
+    const providerCls   = isWinner ? 'text-gold-300' : 'text-gold-500';
+    const nameCls       = isWinner ? 'text-white'    : 'text-navy-900';
+    const priceCls      = isWinner ? 'text-gold-400' : 'text-navy-900';
+    const usdCls        = isWinner ? 'text-white/60' : 'text-ink-500';
+    const dotCls        = isWinner ? 'text-white/25' : 'text-ink-300';
+    const labelCls      = isWinner ? 'text-white/60' : 'text-ink-500';
+    const valueCls      = isWinner ? 'text-white'    : 'text-navy-900';
+    const hlineCls      = isWinner ? 'hairline-dark' : 'hairline';
+
+    return `<article class="result-card reveal ${isWinner ? 'winner' : ''}" style="animation-delay:${i * 50}ms">
+      <header class="flex items-start justify-between mb-5">
+        <div class="min-w-0">
+          <div class="eyebrow ${providerCls}">${r.model.provider}</div>
+          <h3 class="text-[15px] font-semibold mt-1 truncate ${nameCls}">${r.model.name}</h3>
+        </div>
+        ${isWinner ? `<span class="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-navy-900 bg-gold-400 px-2.5 py-1 rounded-md">Moins cher</span>` : ''}
+      </header>
+      <div class="mb-5">
+        <div class="flex items-baseline gap-1.5">
+          <span class="font-round text-[44px] leading-none tracking-[-0.01em] tabular ${priceCls}">${fmtMoney(eurM)}</span>
+          <span class="font-round text-[28px] leading-none ${isWinner ? 'text-gold-400' : 'text-gold-500'}">€</span>
+        </div>
+        <div class="mt-2 flex items-center gap-2 text-[12px] tabular ${usdCls}">
+          <span>$${fmtMoney(r.monthlyCost)}</span>
+          <span class="${dotCls}">·</span>
+          <span>par mois</span>
+          ${pct > 0 ? `<span class="${dotCls}">·</span><span>+${Math.round(pct)}% vs minimum</span>` : ''}
+        </div>
       </div>
-      <div class="space-y-3">
+      <dl class="grid grid-cols-3 gap-4 pt-4 border-t ${hlineCls}">
         <div>
-          <div class="text-xs text-gray-500 mb-0.5">Coût mensuel estimé</div>
-          <div class="flex items-baseline gap-2"><span class="text-2xl font-bold text-white">${fmtCurrency(eurM,'')}€</span><span class="text-sm text-gray-500">${fmtCurrency(r.monthlyCost,'$')}</span></div>
-          ${pct>0?`<div class="text-xs text-gray-500 mt-0.5">+${Math.round(pct)}% vs le moins cher</div>`:''}
+          <dt class="text-[11px] ${labelCls} mb-1 font-medium">Coût / ${reqLabel()}</dt>
+          <dd class="text-[13px] font-semibold tabular ${valueCls}">${fmtMoney(eurR)}€</dd>
         </div>
-        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-gray-800">
-          <div><div class="text-xs text-gray-500">Coût / ${reqLabel()}</div><div class="text-sm font-medium text-gray-200">${fmtCurrency(eurR,'')}€</div><div class="text-xs text-gray-500">${fmtCurrency(r.costPerRequest,'$')}</div></div>
-          <div><div class="text-xs text-gray-500">Volume mensuel</div><div class="text-sm font-medium text-gray-200">${r.monthlyRequests.toLocaleString('fr-FR')}</div><div class="text-xs text-gray-500">${reqLabel()}s</div></div>
+        <div>
+          <dt class="text-[11px] ${labelCls} mb-1 font-medium">Volume</dt>
+          <dd class="text-[13px] font-semibold tabular ${valueCls}">${r.monthlyRequests.toLocaleString('fr-FR')}</dd>
         </div>
-        <div class="pt-3 border-t border-gray-800"><div class="flex justify-between text-xs text-gray-500"><span>Input: ${fmtCurrency(r.model.input,'$')}/1M</span><span>Output: ${fmtCurrency(r.model.output,'$')}/1M</span></div></div>
+        <div>
+          <dt class="text-[11px] ${labelCls} mb-1 font-medium">Latence</dt>
+          <dd class="text-[13px] font-semibold tabular ${valueCls}">${lat}</dd>
+        </div>
+      </dl>
+      <div class="mt-4 pt-3 border-t ${hlineCls} flex items-center justify-between text-[11px] tabular ${labelCls}">
+        <span>in $${fmtMoney(r.model.input)} / 1M</span>
+        <span>out $${fmtMoney(r.model.output)} / 1M</span>
       </div>
-    </div>`;
+    </article>`;
   }).join('');
 }
 
+function initSliders() {
+  document.querySelectorAll('input[type=range]').forEach(updateSliderFill);
+}
+
+window.addEventListener('resize', moveTabIndicator);
+
 initModelChips();
+updateModelCount();
+initSliders();
+requestAnimationFrame(moveTabIndicator);
 calculate();
 </script>
 </body>
