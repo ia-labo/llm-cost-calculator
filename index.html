@@ -347,7 +347,21 @@ tailwind.config = {
 
   </main>
 
-  <footer class="mt-16 pt-8 border-t hairline grid sm:grid-cols-2 gap-3 text-[12px] text-ink-500">
+  <section class="mt-12 sm:mt-14" aria-labelledby="methodology-title">
+    <details class="surface p-6 sm:p-7 group" id="methodology">
+      <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+        <div class="flex items-center gap-2.5">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d2be8f" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <h2 id="methodology-title" class="text-[15px] font-semibold text-navy-900">Comment ce coût est-il calculé&nbsp;?</h2>
+          <span id="methodology-tab-label" class="eyebrow"></span>
+        </div>
+        <svg class="text-ink-400 transition-transform duration-200 group-open:rotate-180" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </summary>
+      <div id="methodology-body" class="mt-5 pt-5 border-t hairline text-[13px] leading-[1.6] text-ink-600"></div>
+    </details>
+  </section>
+
+  <footer class="mt-12 pt-8 border-t hairline grid sm:grid-cols-2 gap-3 text-[12px] text-ink-500">
     <p class="text-pretty">Estimations indicatives basées sur les tarifs publics affichés par les fournisseurs. Les coûts réels peuvent varier selon le routage, le caching et les remises de volume.</p>
     <p class="sm:text-right">© 2026 IALab · <a href="https://ia-lab.fr" target="_blank" rel="noopener" class="text-navy-900 hover:text-gold-500 transition-colors underline decoration-ink-200 underline-offset-2">ia-lab.fr</a></p>
   </footer>
@@ -383,6 +397,42 @@ const MODELS = [
 const TOKENS_PER_PAGE = 800;
 const TOKENS_PER_CHUNK = 256;
 const EMBEDDING_COST_PER_1M = 0.10;
+
+// Détail des formules affichées dans l'infobox « Comment ce coût est-il calculé ? »
+const METHODOLOGY = {
+  rag: {
+    label: 'RAG',
+    intro: "Deux postes de coût : l'<strong>indexation</strong> des documents (embeddings, payée une seule fois) et l'<strong>inférence</strong> du modèle à chaque requête.",
+    steps: [
+      ['Requêtes mensuelles', 'requêtes/jour × 30'],
+      ['Indexation (embeddings)', `documents × pages × ${TOKENS_PER_PAGE} tokens ÷ 1M × ${EMBEDDING_COST_PER_1M.toFixed(2)} $`],
+      ['Entrée par requête', `chunks × ${TOKENS_PER_CHUNK} tokens + 500 (question + prompt système)`],
+      ['Sortie par requête', '500 tokens (réponse générée)'],
+      ['Coût LLM mensuel', 'requêtes × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
+      ['Coût mensuel total', 'indexation + coût LLM'],
+    ],
+  },
+  extraction: {
+    label: 'Extraction',
+    intro: "Chaque page est envoyée au modèle avec le schéma des champs à extraire. Le <strong>mode vision</strong> (PDF traité en image) majore les tokens d'entrée de ×1,8.",
+    steps: [
+      ['Pages totales', 'documents × pages'],
+      ['Entrée par page', `${TOKENS_PER_PAGE} + champs × 50 tokens (× 1,8 si mode vision)`],
+      ['Sortie par page', 'champs × 30 + 100 tokens (JSON structuré)'],
+      ['Coût mensuel', 'pages × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
+    ],
+  },
+  chatbot: {
+    label: 'Chatbot',
+    intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La somme se fait sur les messages d'une session, multipliée par le nombre d'utilisateurs.",
+    steps: [
+      ['Entrée du message n°i', 'contexte + (i−1) × 200 + 100 tokens (+ 500 si mémoire activée)'],
+      ['Sortie par message', '200 tokens'],
+      ['Coût par session', 'Σ sur les messages (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
+      ['Coût mensuel', 'utilisateurs × coût par session'],
+    ],
+  },
+};
 
 let activeTab = 'rag';
 let selectedModels = new Set(['gpt5', 'sonnet-4-6', 'mistral-large-3']);
@@ -452,7 +502,23 @@ function switchTab(tab) {
   document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
   document.getElementById('panel-' + tab).classList.remove('hidden');
   moveTabIndicator();
+  renderMethodology();
   calculate();
+}
+
+function renderMethodology() {
+  const m = METHODOLOGY[activeTab];
+  if (!m) return;
+  document.getElementById('methodology-tab-label').textContent = m.label;
+  const rows = m.steps.map(([term, formula]) => `
+    <div class="grid sm:grid-cols-[180px_1fr] gap-1 sm:gap-4 py-2.5 border-t hairline first:border-t-0">
+      <dt class="text-navy-900 font-medium">${term}</dt>
+      <dd class="tabular text-ink-600">${formula}</dd>
+    </div>`).join('');
+  document.getElementById('methodology-body').innerHTML = `
+    <p class="mb-4 text-pretty">${m.intro}</p>
+    <dl>${rows}</dl>
+    <p class="mt-4 text-[12px] text-ink-500 text-pretty">Les volumes de tokens sont des estimations (≈ ${TOKENS_PER_PAGE} tokens/page) et non une tokenisation réelle. Le caching de prompt, le batch et les remises de volume ne sont pas pris en compte. Le résultat en USD est converti en euros via le taux de change saisi.</p>`;
 }
 
 function updateSliderFill(slider) {
@@ -627,6 +693,7 @@ window.addEventListener('resize', moveTabIndicator);
 initModelChips();
 updateModelCount();
 initSliders();
+renderMethodology();
 requestAnimationFrame(moveTabIndicator);
 calculate();
 </script>
