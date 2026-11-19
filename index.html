@@ -321,6 +321,14 @@ tailwind.config = {
           <span id="model-count" class="text-[11px] tabular text-ink-500">2 sélectionnés</span>
         </div>
         <div id="model-chips" class="space-y-3"></div>
+        <div class="field mt-5 pt-5 border-t hairline">
+          <label class="block text-[13px] font-medium text-ink-500 mb-2" for="reasoning-tokens-num">Tokens de raisonnement / réponse</label>
+          <div class="flex items-center gap-3">
+            <input type="range" min="0" max="5000" value="500" step="100" id="reasoning-tokens" oninput="sync('reasoning-tokens');calculate()" class="flex-1">
+            <input type="number" min="0" max="50000" value="500" id="reasoning-tokens-num" oninput="syncNum('reasoning-tokens');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
+          </div>
+          <p id="reasoning-models" class="mt-2 text-[11px] text-ink-500 text-pretty"></p>
+        </div>
       </section>
 
       <section class="surface-flush px-5 py-3.5 flex items-center justify-between">
@@ -371,10 +379,11 @@ tailwind.config = {
 // Prix publics par 1M de tokens (USD) — vérifiés novembre 2026.
 // Sources : developers.openai.com/api/docs/pricing, platform.claude.com/docs/en/about-claude/pricing, docs.mistral.ai/inference/pricing
 // Seuls les modèles actifs et non dépréciés sont listés.
+// reasoning:true = raisonnement impossible à désactiver (effort minimum « low »), ses tokens sont facturés en sortie.
 const MODELS = [
   // OpenAI
-  { id:'gpt-6-2-astra',   provider:'OpenAI',    name:'GPT-6.2 Astra',    input:8.00, output:40.00, latency:'medium' },
-  { id:'gpt-6-2-sol',     provider:'OpenAI',    name:'GPT-6.2 Sol',      input:2.00, output:10.00, latency:'fast' },
+  { id:'gpt-6-2-astra',   provider:'OpenAI',    name:'GPT-6.2 Astra',    input:8.00, output:40.00, latency:'medium',    reasoning:true },
+  { id:'gpt-6-2-sol',     provider:'OpenAI',    name:'GPT-6.2 Sol',      input:2.00, output:10.00, latency:'fast',      reasoning:true },
   { id:'gpt-6-1-terra',   provider:'OpenAI',    name:'GPT-6.1 Terra',    input:1.00, output:5.00,  latency:'very-fast' },
   { id:'gpt-6-luna',      provider:'OpenAI',    name:'GPT-6 Luna',       input:0.10, output:0.50,  latency:'very-fast' },
 
@@ -406,7 +415,7 @@ const METHODOLOGY = {
       ['Requêtes mensuelles', 'requêtes/jour × 30'],
       ['Indexation (embeddings)', `documents × pages × ${TOKENS_PER_PAGE} tokens ÷ 1M × ${EMBEDDING_COST_PER_1M.toFixed(2)} $`],
       ['Entrée par requête', `chunks × ${TOKENS_PER_CHUNK} tokens + 500 (question + prompt système)`],
-      ['Sortie par requête', '500 tokens (réponse générée)'],
+      ['Sortie par requête', '500 tokens (réponse générée) + tokens de raisonnement'],
       ['Coût mensuel', 'requêtes × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
       ['Coût unique', 'indexation, affichée à part et exclue du coût mensuel'],
     ],
@@ -417,7 +426,7 @@ const METHODOLOGY = {
     steps: [
       ['Pages totales', 'documents × pages'],
       ['Entrée par page', `${TOKENS_PER_PAGE} + champs × 50 tokens (× 1,8 si mode vision)`],
-      ['Sortie par page', 'champs × 30 + 100 tokens (JSON structuré)'],
+      ['Sortie par page', 'champs × 30 + 100 tokens (JSON structuré) + tokens de raisonnement'],
       ['Coût mensuel', 'pages × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
     ],
   },
@@ -426,7 +435,7 @@ const METHODOLOGY = {
     intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La somme se fait sur les messages d'une session, multipliée par le nombre d'utilisateurs.",
     steps: [
       ['Entrée du message n°i', 'contexte + (i−1) × 200 + 100 tokens (+ 500 si mémoire activée)'],
-      ['Sortie par message', '200 tokens'],
+      ['Sortie par message', '200 tokens + tokens de raisonnement'],
       ['Coût par session', 'Σ sur les messages (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
       ['Coût mensuel', 'utilisateurs × coût par session'],
     ],
@@ -517,7 +526,7 @@ function renderMethodology() {
   document.getElementById('methodology-body').innerHTML = `
     <p class="mb-4 text-pretty">${m.intro}</p>
     <dl>${rows}</dl>
-    <p class="mt-4 text-[12px] text-ink-500 text-pretty">Les volumes de tokens sont des estimations (≈ ${TOKENS_PER_PAGE} tokens/page) et non une tokenisation réelle. Le caching de prompt, le batch et les remises de volume ne sont pas pris en compte. Le résultat en USD est converti en euros via le taux de change saisi.</p>`;
+    <p class="mt-4 text-[12px] text-ink-500 text-pretty">Les volumes de tokens sont des estimations (≈ ${TOKENS_PER_PAGE} tokens/page) et non une tokenisation réelle. Le caching de prompt, le batch et les remises de volume ne sont pas pris en compte. Les tokens de raisonnement ne comptent que pour les modèles qui raisonnent toujours ; les autres sont supposés utilisés sans raisonnement. Le résultat en USD est converti en euros via le taux de change saisi.</p>`;
 }
 
 function updateSliderFill(slider) {
@@ -538,12 +547,19 @@ function syncNum(id) {
 }
 function val(id) { return parseFloat(document.getElementById(id + '-num').value) || 0; }
 function checked(id) { return document.getElementById(id).checked; }
+function reasoningTokens(model) { return model.reasoning ? val('reasoning-tokens') : 0; }
+
+function renderReasoningModels() {
+  const names = MODELS.filter(m => m.reasoning).map(m => m.name).join(', ');
+  document.getElementById('reasoning-models').textContent =
+    `Facturés comme de la sortie, ajoutés à chaque réponse des modèles qui raisonnent toujours : ${names}.`;
+}
 
 function computeRAG(model) {
   const reqDay = val('rag-requests'), docs = val('rag-docs'), pages = val('rag-pages'), chunks = val('rag-chunks');
   const monthlyReq = reqDay * 30;
   const embeddingCost = (docs * pages * TOKENS_PER_PAGE / 1e6) * EMBEDDING_COST_PER_1M;
-  const inputPerQ = chunks * TOKENS_PER_CHUNK + 500, outputPerQ = 500;
+  const inputPerQ = chunks * TOKENS_PER_CHUNK + 500, outputPerQ = 500 + reasoningTokens(model);
   const monthlyCost = (monthlyReq * inputPerQ / 1e6) * model.input + (monthlyReq * outputPerQ / 1e6) * model.output;
   // L'indexation n'est payée qu'une fois : elle est exclue du coût mensuel et du coût par requête.
   return { monthlyCost, costPerRequest: monthlyReq > 0 ? monthlyCost / monthlyReq : 0, monthlyRequests: monthlyReq, oneTimeCost: embeddingCost };
@@ -553,7 +569,7 @@ function computeExtraction(model) {
   const docs = val('ext-docs'), pages = val('ext-pages'), fields = val('ext-fields'), vision = checked('ext-vision');
   const totalPages = docs * pages;
   const totalInput = totalPages * (800 + fields * 50) * (vision ? 1.8 : 1.0);
-  const totalOutput = totalPages * (fields * 30 + 100);
+  const totalOutput = totalPages * (fields * 30 + 100 + reasoningTokens(model));
   const monthlyCost = (totalInput / 1e6) * model.input + (totalOutput / 1e6) * model.output;
   return { monthlyCost, costPerRequest: docs > 0 ? monthlyCost / docs : 0, monthlyRequests: docs };
 }
@@ -562,7 +578,8 @@ function computeChatbot(model) {
   const users = val('chat-users'), msgs = val('chat-messages'), ctx = val('chat-context'), mem = checked('chat-memory');
   const memOverhead = mem ? 500 : 0;
   let totalIn = 0, totalOut = 0;
-  for (let i = 1; i <= msgs; i++) { totalIn += ctx + (i-1)*200 + 100 + memOverhead; totalOut += 200; }
+  const outPerMsg = 200 + reasoningTokens(model);
+  for (let i = 1; i <= msgs; i++) { totalIn += ctx + (i-1)*200 + 100 + memOverhead; totalOut += outPerMsg; }
   const monthlyCost = users * ((totalIn / 1e6) * model.input + (totalOut / 1e6) * model.output);
   return { monthlyCost, costPerRequest: users > 0 ? monthlyCost / users : 0, monthlyRequests: users };
 }
@@ -691,6 +708,7 @@ function initSliders() {
 window.addEventListener('resize', moveTabIndicator);
 
 initModelChips();
+renderReasoningModels();
 updateModelCount();
 initSliders();
 renderMethodology();
