@@ -713,6 +713,7 @@ function calculate() {
       </dl>
       <div class="mt-4 pt-3 border-t ${hlineCls} flex items-center justify-between text-[11px] tabular ${labelCls}">
         <span>in $${fmtMoney(r.model.input)} / 1M</span>
+        ${activeTab === 'chatbot' ? `<span>cache $${fmtMoney(r.model.cachedInput)} / 1M</span>` : ''}
         <span>out $${fmtMoney(r.model.output)} / 1M</span>
       </div>
     </article>`;
