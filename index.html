@@ -290,6 +290,13 @@ tailwind.config = {
             </div>
           </div>
           <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="chat-sessions-num">Sessions / utilisateur / mois</label>
+            <div class="flex items-center gap-3">
+              <input type="range" min="1" max="60" value="4" id="chat-sessions" oninput="sync('chat-sessions');calculate()" class="flex-1">
+              <input type="number" min="1" max="1000" value="4" id="chat-sessions-num" oninput="syncNum('chat-sessions');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
+            </div>
+          </div>
+          <div class="field">
             <label class="block text-[13px] font-medium text-ink-500 mb-2" for="chat-messages-num">Messages / session</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="50" value="8" id="chat-messages" oninput="sync('chat-messages');calculate()" class="flex-1">
@@ -321,6 +328,14 @@ tailwind.config = {
           <span id="model-count" class="text-[11px] tabular text-ink-500">2 sélectionnés</span>
         </div>
         <div id="model-chips" class="space-y-3"></div>
+        <div class="field mt-5 pt-5 border-t hairline">
+          <label class="block text-[13px] font-medium text-ink-500 mb-2" for="reasoning-tokens-num">Tokens de raisonnement / réponse</label>
+          <div class="flex items-center gap-3">
+            <input type="range" min="0" max="5000" value="500" step="100" id="reasoning-tokens" oninput="sync('reasoning-tokens');calculate()" class="flex-1">
+            <input type="number" min="0" max="50000" value="500" id="reasoning-tokens-num" oninput="syncNum('reasoning-tokens');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
+          </div>
+          <p id="reasoning-models" class="mt-2 text-[11px] text-ink-500 text-pretty"></p>
+        </div>
       </section>
 
       <section class="surface-flush px-5 py-3.5 flex items-center justify-between">
@@ -368,30 +383,32 @@ tailwind.config = {
 </div>
 
 <script>
-// Prix publics par 1M de tokens (USD) — vérifiés mai 2026.
-// Sources : openai.com/api/pricing, claude.com/pricing, mistral.ai/pricing
+// Prix publics par 1M de tokens (USD) — vérifiés novembre 2026.
+// Sources : developers.openai.com/api/docs/pricing, platform.claude.com/docs/en/about-claude/pricing, docs.mistral.ai/inference/pricing
+// Seuls les modèles actifs et non dépréciés sont listés.
+// reasoning:true = raisonnement impossible à désactiver (effort minimum « low »), ses tokens sont facturés en sortie.
+// cachedInput = lecture du cache de prompt. cacheWrite = écriture dans le cache (5 min) ;
+// absent = écriture au prix d'entrée normal (OpenAI, Mistral), Anthropic la facture 1,25 × l'entrée.
 const MODELS = [
   // OpenAI
-  { id:'gpt5',          provider:'OpenAI',    name:'GPT-5',            input:1.25, output:10.00, latency:'fast' },
-  { id:'gpt5-mini',     provider:'OpenAI',    name:'GPT-5 mini',       input:0.25, output:2.00,  latency:'very-fast' },
-  { id:'gpt4.1',        provider:'OpenAI',    name:'GPT-4.1',          input:2.00, output:8.00,  latency:'fast' },
-  { id:'gpt4.1-mini',   provider:'OpenAI',    name:'GPT-4.1 mini',     input:0.40, output:1.60,  latency:'very-fast' },
-  { id:'gpt4.1-nano',   provider:'OpenAI',    name:'GPT-4.1 nano',     input:0.10, output:0.40,  latency:'very-fast' },
-  { id:'gpt4o',         provider:'OpenAI',    name:'GPT-4o',           input:2.50, output:10.00, latency:'fast' },
-  { id:'gpt4o-mini',    provider:'OpenAI',    name:'GPT-4o mini',      input:0.15, output:0.60,  latency:'very-fast' },
+  { id:'gpt-6-2-astra',   provider:'OpenAI',    name:'GPT-6.2 Astra',    input:8.00, cachedInput:0.40,  output:40.00, latency:'medium',    reasoning:true },
+  { id:'gpt-6-2-sol',     provider:'OpenAI',    name:'GPT-6.2 Sol',      input:2.00, cachedInput:0.10,  output:10.00, latency:'fast',      reasoning:true },
+  { id:'gpt-6-1-terra',   provider:'OpenAI',    name:'GPT-6.1 Terra',    input:1.00, cachedInput:0.05,  output:5.00,  latency:'very-fast' },
+  { id:'gpt-6-luna',      provider:'OpenAI',    name:'GPT-6 Luna',       input:0.10, cachedInput:0.01,  output:0.50,  latency:'very-fast' },
 
   // Anthropic
-  { id:'opus-4-7',      provider:'Anthropic', name:'Claude Opus 4.7',     input:5.00, output:25.00, latency:'medium' },
-  { id:'sonnet-4-6',    provider:'Anthropic', name:'Claude Sonnet 4.6',   input:3.00, output:15.00, latency:'fast' },
-  { id:'haiku-4-5',     provider:'Anthropic', name:'Claude Haiku 4.5',    input:1.00, output:5.00,  latency:'very-fast' },
-  { id:'haiku-3-5',     provider:'Anthropic', name:'Claude Haiku 3.5',    input:0.80, output:4.00,  latency:'very-fast' },
+  // Haiku 5.5 : tarif des prompts ≤ 100k tokens, le simulateur ne dépasse pas ce seuil.
+  { id:'fable-5-2',       provider:'Anthropic', name:'Claude Fable 5.2',  input:8.00, cachedInput:0.20,  cacheWrite:10.00, output:40.00, latency:'medium' },
+  { id:'opus-5-5',        provider:'Anthropic', name:'Claude Opus 5.5',   input:4.00, cachedInput:0.20,  cacheWrite:5.00,  output:20.00, latency:'medium' },
+  { id:'sonnet-5-5',      provider:'Anthropic', name:'Claude Sonnet 5.5', input:2.00, cachedInput:0.10,  cacheWrite:2.50,  output:10.00, latency:'fast' },
+  { id:'haiku-5-5',       provider:'Anthropic', name:'Claude Haiku 5.5',  input:0.10, cachedInput:0.01,  cacheWrite:0.125, output:0.50,  latency:'very-fast' },
 
   // Mistral
-  { id:'mistral-large-3',   provider:'Mistral', name:'Mistral Large 3',    input:2.00, output:6.00,  latency:'fast' },
-  { id:'mistral-medium-3',  provider:'Mistral', name:'Mistral Medium 3',   input:1.00, output:3.00,  latency:'fast' },
-  { id:'mistral-small-3-1', provider:'Mistral', name:'Mistral Small 3.1',  input:0.20, output:0.60,  latency:'very-fast' },
-  { id:'ministral-8b',      provider:'Mistral', name:'Ministral 8B',       input:0.10, output:0.10,  latency:'very-fast' },
-  { id:'ministral-3b',      provider:'Mistral', name:'Ministral 3B',       input:0.04, output:0.04,  latency:'very-fast' },
+  { id:'mistral-large-4', provider:'Mistral',   name:'Mistral Large 4',   input:0.70, cachedInput:0.07,  output:2.10,  latency:'fast' },
+  { id:'mistral-small-4', provider:'Mistral',   name:'Mistral Small 4',   input:0.15, cachedInput:0.015, output:0.60,  latency:'very-fast' },
+  { id:'ministral-3-14b', provider:'Mistral',   name:'Ministral 3 14B',   input:0.20, cachedInput:0.02,  output:0.20,  latency:'very-fast' },
+  { id:'ministral-3-8b',  provider:'Mistral',   name:'Ministral 3 8B',    input:0.15, cachedInput:0.015, output:0.15,  latency:'very-fast' },
+  { id:'ministral-3-3b',  provider:'Mistral',   name:'Ministral 3 3B',    input:0.10, cachedInput:0.01,  output:0.10,  latency:'very-fast' },
 ];
 
 const TOKENS_PER_PAGE = 800;
@@ -407,9 +424,9 @@ const METHODOLOGY = {
       ['Requêtes mensuelles', 'requêtes/jour × 30'],
       ['Indexation (embeddings)', `documents × pages × ${TOKENS_PER_PAGE} tokens ÷ 1M × ${EMBEDDING_COST_PER_1M.toFixed(2)} $`],
       ['Entrée par requête', `chunks × ${TOKENS_PER_CHUNK} tokens + 500 (question + prompt système)`],
-      ['Sortie par requête', '500 tokens (réponse générée)'],
-      ['Coût LLM mensuel', 'requêtes × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
-      ['Coût mensuel total', 'indexation + coût LLM'],
+      ['Sortie par requête', '500 tokens (réponse générée) + tokens de raisonnement'],
+      ['Coût mensuel', 'requêtes × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
+      ['Coût unique', 'indexation, affichée à part et exclue du coût mensuel'],
     ],
   },
   extraction: {
@@ -418,24 +435,26 @@ const METHODOLOGY = {
     steps: [
       ['Pages totales', 'documents × pages'],
       ['Entrée par page', `${TOKENS_PER_PAGE} + champs × 50 tokens (× 1,8 si mode vision)`],
-      ['Sortie par page', 'champs × 30 + 100 tokens (JSON structuré)'],
+      ['Sortie par page', 'champs × 30 + 100 tokens (JSON structuré) + tokens de raisonnement'],
       ['Coût mensuel', 'pages × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
     ],
   },
   chatbot: {
     label: 'Chatbot',
-    intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La somme se fait sur les messages d'une session, multipliée par le nombre d'utilisateurs.",
+    intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La partie déjà envoyée au tour précédent est relue depuis le <strong>cache de prompt</strong>, facturé une fraction du prix d'entrée. La somme se fait sur les messages d'une session, multipliée par le nombre de sessions du mois.",
     steps: [
       ['Entrée du message n°i', 'contexte + (i−1) × 200 + 100 tokens (+ 500 si mémoire activée)'],
-      ['Sortie par message', '200 tokens'],
-      ['Coût par session', 'Σ sur les messages (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
-      ['Coût mensuel', 'utilisateurs × coût par session'],
+      ['Dont lue en cache', 'à partir du 2e message : contexte + (i−2) × 200 (+ 500 si mémoire)'],
+      ['Dont écrite en cache', "le reste de l'entrée, au prix d'entrée (× 1,25 chez Anthropic)"],
+      ['Sortie par message', '200 tokens + tokens de raisonnement'],
+      ['Coût par session', 'Σ sur les messages (écrit × prix écriture + lu × prix cache + sortie × prix sortie) ÷ 1M'],
+      ['Coût mensuel', 'utilisateurs × sessions par utilisateur × coût par session'],
     ],
   },
 };
 
 let activeTab = 'rag';
-let selectedModels = new Set(['gpt5', 'sonnet-4-6', 'mistral-large-3']);
+let selectedModels = new Set(['gpt-6-2-sol', 'sonnet-5-5', 'mistral-large-4']);
 
 function initModelChips() {
   const container = document.getElementById('model-chips');
@@ -518,7 +537,7 @@ function renderMethodology() {
   document.getElementById('methodology-body').innerHTML = `
     <p class="mb-4 text-pretty">${m.intro}</p>
     <dl>${rows}</dl>
-    <p class="mt-4 text-[12px] text-ink-500 text-pretty">Les volumes de tokens sont des estimations (≈ ${TOKENS_PER_PAGE} tokens/page) et non une tokenisation réelle. Le caching de prompt, le batch et les remises de volume ne sont pas pris en compte. Le résultat en USD est converti en euros via le taux de change saisi.</p>`;
+    <p class="mt-4 text-[12px] text-ink-500 text-pretty">Les volumes de tokens sont des estimations (≈ ${TOKENS_PER_PAGE} tokens/page) et non une tokenisation réelle. Le cache de prompt n'est pris en compte que pour le chatbot ; le batch et les remises de volume ne le sont pas. Les tokens de raisonnement ne comptent que pour les modèles qui raisonnent toujours ; les autres sont supposés utilisés sans raisonnement. Le résultat en USD est converti en euros via le taux de change saisi.</p>`;
 }
 
 function updateSliderFill(slider) {
@@ -539,22 +558,29 @@ function syncNum(id) {
 }
 function val(id) { return parseFloat(document.getElementById(id + '-num').value) || 0; }
 function checked(id) { return document.getElementById(id).checked; }
+function reasoningTokens(model) { return model.reasoning ? val('reasoning-tokens') : 0; }
+
+function renderReasoningModels() {
+  const names = MODELS.filter(m => m.reasoning).map(m => m.name).join(', ');
+  document.getElementById('reasoning-models').textContent =
+    `Facturés comme de la sortie, ajoutés à chaque réponse des modèles qui raisonnent toujours : ${names}.`;
+}
 
 function computeRAG(model) {
   const reqDay = val('rag-requests'), docs = val('rag-docs'), pages = val('rag-pages'), chunks = val('rag-chunks');
   const monthlyReq = reqDay * 30;
   const embeddingCost = (docs * pages * TOKENS_PER_PAGE / 1e6) * EMBEDDING_COST_PER_1M;
-  const inputPerQ = chunks * TOKENS_PER_CHUNK + 500, outputPerQ = 500;
-  const llmCost = (monthlyReq * inputPerQ / 1e6) * model.input + (monthlyReq * outputPerQ / 1e6) * model.output;
-  const monthlyCost = embeddingCost + llmCost;
-  return { monthlyCost, costPerRequest: monthlyReq > 0 ? monthlyCost / monthlyReq : 0, monthlyRequests: monthlyReq };
+  const inputPerQ = chunks * TOKENS_PER_CHUNK + 500, outputPerQ = 500 + reasoningTokens(model);
+  const monthlyCost = (monthlyReq * inputPerQ / 1e6) * model.input + (monthlyReq * outputPerQ / 1e6) * model.output;
+  // L'indexation n'est payée qu'une fois : elle est exclue du coût mensuel et du coût par requête.
+  return { monthlyCost, costPerRequest: monthlyReq > 0 ? monthlyCost / monthlyReq : 0, monthlyRequests: monthlyReq, oneTimeCost: embeddingCost };
 }
 
 function computeExtraction(model) {
   const docs = val('ext-docs'), pages = val('ext-pages'), fields = val('ext-fields'), vision = checked('ext-vision');
   const totalPages = docs * pages;
   const totalInput = totalPages * (800 + fields * 50) * (vision ? 1.8 : 1.0);
-  const totalOutput = totalPages * (fields * 30 + 100);
+  const totalOutput = totalPages * (fields * 30 + 100 + reasoningTokens(model));
   const monthlyCost = (totalInput / 1e6) * model.input + (totalOutput / 1e6) * model.output;
   return { monthlyCost, costPerRequest: docs > 0 ? monthlyCost / docs : 0, monthlyRequests: docs };
 }
@@ -562,10 +588,18 @@ function computeExtraction(model) {
 function computeChatbot(model) {
   const users = val('chat-users'), msgs = val('chat-messages'), ctx = val('chat-context'), mem = checked('chat-memory');
   const memOverhead = mem ? 500 : 0;
-  let totalIn = 0, totalOut = 0;
-  for (let i = 1; i <= msgs; i++) { totalIn += ctx + (i-1)*200 + 100 + memOverhead; totalOut += 200; }
-  const monthlyCost = users * ((totalIn / 1e6) * model.input + (totalOut / 1e6) * model.output);
-  return { monthlyCost, costPerRequest: users > 0 ? monthlyCost / users : 0, monthlyRequests: users };
+  const outPerMsg = 200 + reasoningTokens(model);
+  let cachedIn = 0, freshIn = 0, totalOut = 0;
+  for (let i = 1; i <= msgs; i++) {
+    const promptTokens = ctx + (i-1)*200 + 100 + memOverhead;
+    // Le préfixe déjà envoyé au tour précédent est relu depuis le cache ; le reste y est écrit.
+    const cached = i === 1 ? 0 : ctx + memOverhead + (i-2)*200;
+    cachedIn += cached; freshIn += promptTokens - cached; totalOut += outPerMsg;
+  }
+  const writePrice = model.cacheWrite ?? model.input;
+  const sessionCost = (freshIn * writePrice + cachedIn * model.cachedInput + totalOut * model.output) / 1e6;
+  const sessions = users * val('chat-sessions');
+  return { monthlyCost: sessions * sessionCost, costPerRequest: sessionCost, monthlyRequests: sessions };
 }
 
 function fmtMoney(v) {
@@ -661,6 +695,7 @@ function calculate() {
           <span>par mois</span>
           ${pct > 0 ? `<span class="${dotCls}">·</span><span>+${Math.round(pct)}% vs minimum</span>` : ''}
         </div>
+        ${r.oneTimeCost ? `<div class="mt-1 text-[12px] tabular ${usdCls}">+ ${fmtMoney(r.oneTimeCost / rate)}€ d'indexation, payée une seule fois</div>` : ''}
       </div>
       <dl class="grid grid-cols-3 gap-4 pt-4 border-t ${hlineCls}">
         <div>
@@ -678,6 +713,7 @@ function calculate() {
       </dl>
       <div class="mt-4 pt-3 border-t ${hlineCls} flex items-center justify-between text-[11px] tabular ${labelCls}">
         <span>in $${fmtMoney(r.model.input)} / 1M</span>
+        ${activeTab === 'chatbot' ? `<span>cache $${fmtMoney(r.model.cachedInput)} / 1M</span>` : ''}
         <span>out $${fmtMoney(r.model.output)} / 1M</span>
       </div>
     </article>`;
@@ -691,6 +727,7 @@ function initSliders() {
 window.addEventListener('resize', moveTabIndicator);
 
 initModelChips();
+renderReasoningModels();
 updateModelCount();
 initSliders();
 renderMethodology();
