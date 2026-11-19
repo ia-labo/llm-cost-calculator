@@ -380,26 +380,28 @@ tailwind.config = {
 // Sources : developers.openai.com/api/docs/pricing, platform.claude.com/docs/en/about-claude/pricing, docs.mistral.ai/inference/pricing
 // Seuls les modèles actifs et non dépréciés sont listés.
 // reasoning:true = raisonnement impossible à désactiver (effort minimum « low »), ses tokens sont facturés en sortie.
+// cachedInput = lecture du cache de prompt. cacheWrite = écriture dans le cache (5 min) ;
+// absent = écriture au prix d'entrée normal (OpenAI, Mistral), Anthropic la facture 1,25 × l'entrée.
 const MODELS = [
   // OpenAI
-  { id:'gpt-6-2-astra',   provider:'OpenAI',    name:'GPT-6.2 Astra',    input:8.00, output:40.00, latency:'medium',    reasoning:true },
-  { id:'gpt-6-2-sol',     provider:'OpenAI',    name:'GPT-6.2 Sol',      input:2.00, output:10.00, latency:'fast',      reasoning:true },
-  { id:'gpt-6-1-terra',   provider:'OpenAI',    name:'GPT-6.1 Terra',    input:1.00, output:5.00,  latency:'very-fast' },
-  { id:'gpt-6-luna',      provider:'OpenAI',    name:'GPT-6 Luna',       input:0.10, output:0.50,  latency:'very-fast' },
+  { id:'gpt-6-2-astra',   provider:'OpenAI',    name:'GPT-6.2 Astra',    input:8.00, cachedInput:0.40,  output:40.00, latency:'medium',    reasoning:true },
+  { id:'gpt-6-2-sol',     provider:'OpenAI',    name:'GPT-6.2 Sol',      input:2.00, cachedInput:0.10,  output:10.00, latency:'fast',      reasoning:true },
+  { id:'gpt-6-1-terra',   provider:'OpenAI',    name:'GPT-6.1 Terra',    input:1.00, cachedInput:0.05,  output:5.00,  latency:'very-fast' },
+  { id:'gpt-6-luna',      provider:'OpenAI',    name:'GPT-6 Luna',       input:0.10, cachedInput:0.01,  output:0.50,  latency:'very-fast' },
 
   // Anthropic
   // Haiku 5.5 : tarif des prompts ≤ 100k tokens, le simulateur ne dépasse pas ce seuil.
-  { id:'fable-5-2',       provider:'Anthropic', name:'Claude Fable 5.2',  input:8.00, output:40.00, latency:'medium' },
-  { id:'opus-5-5',        provider:'Anthropic', name:'Claude Opus 5.5',   input:4.00, output:20.00, latency:'medium' },
-  { id:'sonnet-5-5',      provider:'Anthropic', name:'Claude Sonnet 5.5', input:2.00, output:10.00, latency:'fast' },
-  { id:'haiku-5-5',       provider:'Anthropic', name:'Claude Haiku 5.5',  input:0.10, output:0.50,  latency:'very-fast' },
+  { id:'fable-5-2',       provider:'Anthropic', name:'Claude Fable 5.2',  input:8.00, cachedInput:0.20,  cacheWrite:10.00, output:40.00, latency:'medium' },
+  { id:'opus-5-5',        provider:'Anthropic', name:'Claude Opus 5.5',   input:4.00, cachedInput:0.20,  cacheWrite:5.00,  output:20.00, latency:'medium' },
+  { id:'sonnet-5-5',      provider:'Anthropic', name:'Claude Sonnet 5.5', input:2.00, cachedInput:0.10,  cacheWrite:2.50,  output:10.00, latency:'fast' },
+  { id:'haiku-5-5',       provider:'Anthropic', name:'Claude Haiku 5.5',  input:0.10, cachedInput:0.01,  cacheWrite:0.125, output:0.50,  latency:'very-fast' },
 
   // Mistral
-  { id:'mistral-large-4', provider:'Mistral',   name:'Mistral Large 4',   input:0.70, output:2.10,  latency:'fast' },
-  { id:'mistral-small-4', provider:'Mistral',   name:'Mistral Small 4',   input:0.15, output:0.60,  latency:'very-fast' },
-  { id:'ministral-3-14b', provider:'Mistral',   name:'Ministral 3 14B',   input:0.20, output:0.20,  latency:'very-fast' },
-  { id:'ministral-3-8b',  provider:'Mistral',   name:'Ministral 3 8B',    input:0.15, output:0.15,  latency:'very-fast' },
-  { id:'ministral-3-3b',  provider:'Mistral',   name:'Ministral 3 3B',    input:0.10, output:0.10,  latency:'very-fast' },
+  { id:'mistral-large-4', provider:'Mistral',   name:'Mistral Large 4',   input:0.70, cachedInput:0.07,  output:2.10,  latency:'fast' },
+  { id:'mistral-small-4', provider:'Mistral',   name:'Mistral Small 4',   input:0.15, cachedInput:0.015, output:0.60,  latency:'very-fast' },
+  { id:'ministral-3-14b', provider:'Mistral',   name:'Ministral 3 14B',   input:0.20, cachedInput:0.02,  output:0.20,  latency:'very-fast' },
+  { id:'ministral-3-8b',  provider:'Mistral',   name:'Ministral 3 8B',    input:0.15, cachedInput:0.015, output:0.15,  latency:'very-fast' },
+  { id:'ministral-3-3b',  provider:'Mistral',   name:'Ministral 3 3B',    input:0.10, cachedInput:0.01,  output:0.10,  latency:'very-fast' },
 ];
 
 const TOKENS_PER_PAGE = 800;
@@ -432,11 +434,13 @@ const METHODOLOGY = {
   },
   chatbot: {
     label: 'Chatbot',
-    intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La somme se fait sur les messages d'une session, multipliée par le nombre d'utilisateurs.",
+    intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La partie déjà envoyée au tour précédent est relue depuis le <strong>cache de prompt</strong>, facturé une fraction du prix d'entrée. La somme se fait sur les messages d'une session, multipliée par le nombre d'utilisateurs.",
     steps: [
       ['Entrée du message n°i', 'contexte + (i−1) × 200 + 100 tokens (+ 500 si mémoire activée)'],
+      ['Dont lue en cache', 'à partir du 2e message : contexte + (i−2) × 200 (+ 500 si mémoire)'],
+      ['Dont écrite en cache', "le reste de l'entrée, au prix d'entrée (× 1,25 chez Anthropic)"],
       ['Sortie par message', '200 tokens + tokens de raisonnement'],
-      ['Coût par session', 'Σ sur les messages (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
+      ['Coût par session', 'Σ sur les messages (écrit × prix écriture + lu × prix cache + sortie × prix sortie) ÷ 1M'],
       ['Coût mensuel', 'utilisateurs × coût par session'],
     ],
   },
@@ -526,7 +530,7 @@ function renderMethodology() {
   document.getElementById('methodology-body').innerHTML = `
     <p class="mb-4 text-pretty">${m.intro}</p>
     <dl>${rows}</dl>
-    <p class="mt-4 text-[12px] text-ink-500 text-pretty">Les volumes de tokens sont des estimations (≈ ${TOKENS_PER_PAGE} tokens/page) et non une tokenisation réelle. Le caching de prompt, le batch et les remises de volume ne sont pas pris en compte. Les tokens de raisonnement ne comptent que pour les modèles qui raisonnent toujours ; les autres sont supposés utilisés sans raisonnement. Le résultat en USD est converti en euros via le taux de change saisi.</p>`;
+    <p class="mt-4 text-[12px] text-ink-500 text-pretty">Les volumes de tokens sont des estimations (≈ ${TOKENS_PER_PAGE} tokens/page) et non une tokenisation réelle. Le cache de prompt n'est pris en compte que pour le chatbot ; le batch et les remises de volume ne le sont pas. Les tokens de raisonnement ne comptent que pour les modèles qui raisonnent toujours ; les autres sont supposés utilisés sans raisonnement. Le résultat en USD est converti en euros via le taux de change saisi.</p>`;
 }
 
 function updateSliderFill(slider) {
@@ -577,10 +581,17 @@ function computeExtraction(model) {
 function computeChatbot(model) {
   const users = val('chat-users'), msgs = val('chat-messages'), ctx = val('chat-context'), mem = checked('chat-memory');
   const memOverhead = mem ? 500 : 0;
-  let totalIn = 0, totalOut = 0;
   const outPerMsg = 200 + reasoningTokens(model);
-  for (let i = 1; i <= msgs; i++) { totalIn += ctx + (i-1)*200 + 100 + memOverhead; totalOut += outPerMsg; }
-  const monthlyCost = users * ((totalIn / 1e6) * model.input + (totalOut / 1e6) * model.output);
+  let cachedIn = 0, freshIn = 0, totalOut = 0;
+  for (let i = 1; i <= msgs; i++) {
+    const promptTokens = ctx + (i-1)*200 + 100 + memOverhead;
+    // Le préfixe déjà envoyé au tour précédent est relu depuis le cache ; le reste y est écrit.
+    const cached = i === 1 ? 0 : ctx + memOverhead + (i-2)*200;
+    cachedIn += cached; freshIn += promptTokens - cached; totalOut += outPerMsg;
+  }
+  const writePrice = model.cacheWrite ?? model.input;
+  const sessionCost = (freshIn * writePrice + cachedIn * model.cachedInput + totalOut * model.output) / 1e6;
+  const monthlyCost = users * sessionCost;
   return { monthlyCost, costPerRequest: users > 0 ? monthlyCost / users : 0, monthlyRequests: users };
 }
 
