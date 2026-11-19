@@ -407,8 +407,8 @@ const METHODOLOGY = {
       ['Indexation (embeddings)', `documents × pages × ${TOKENS_PER_PAGE} tokens ÷ 1M × ${EMBEDDING_COST_PER_1M.toFixed(2)} $`],
       ['Entrée par requête', `chunks × ${TOKENS_PER_CHUNK} tokens + 500 (question + prompt système)`],
       ['Sortie par requête', '500 tokens (réponse générée)'],
-      ['Coût LLM mensuel', 'requêtes × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
-      ['Coût mensuel total', 'indexation + coût LLM'],
+      ['Coût mensuel', 'requêtes × (entrée × prix entrée + sortie × prix sortie) ÷ 1M'],
+      ['Coût unique', 'indexation, affichée à part et exclue du coût mensuel'],
     ],
   },
   extraction: {
@@ -544,9 +544,9 @@ function computeRAG(model) {
   const monthlyReq = reqDay * 30;
   const embeddingCost = (docs * pages * TOKENS_PER_PAGE / 1e6) * EMBEDDING_COST_PER_1M;
   const inputPerQ = chunks * TOKENS_PER_CHUNK + 500, outputPerQ = 500;
-  const llmCost = (monthlyReq * inputPerQ / 1e6) * model.input + (monthlyReq * outputPerQ / 1e6) * model.output;
-  const monthlyCost = embeddingCost + llmCost;
-  return { monthlyCost, costPerRequest: monthlyReq > 0 ? monthlyCost / monthlyReq : 0, monthlyRequests: monthlyReq };
+  const monthlyCost = (monthlyReq * inputPerQ / 1e6) * model.input + (monthlyReq * outputPerQ / 1e6) * model.output;
+  // L'indexation n'est payée qu'une fois : elle est exclue du coût mensuel et du coût par requête.
+  return { monthlyCost, costPerRequest: monthlyReq > 0 ? monthlyCost / monthlyReq : 0, monthlyRequests: monthlyReq, oneTimeCost: embeddingCost };
 }
 
 function computeExtraction(model) {
@@ -660,6 +660,7 @@ function calculate() {
           <span>par mois</span>
           ${pct > 0 ? `<span class="${dotCls}">·</span><span>+${Math.round(pct)}% vs minimum</span>` : ''}
         </div>
+        ${r.oneTimeCost ? `<div class="mt-1 text-[12px] tabular ${usdCls}">+ ${fmtMoney(r.oneTimeCost / rate)}€ d'indexation, payée une seule fois</div>` : ''}
       </div>
       <dl class="grid grid-cols-3 gap-4 pt-4 border-t ${hlineCls}">
         <div>
