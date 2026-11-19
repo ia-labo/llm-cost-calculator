@@ -290,6 +290,13 @@ tailwind.config = {
             </div>
           </div>
           <div class="field">
+            <label class="block text-[13px] font-medium text-ink-500 mb-2" for="chat-sessions-num">Sessions / utilisateur / mois</label>
+            <div class="flex items-center gap-3">
+              <input type="range" min="1" max="60" value="4" id="chat-sessions" oninput="sync('chat-sessions');calculate()" class="flex-1">
+              <input type="number" min="1" max="1000" value="4" id="chat-sessions-num" oninput="syncNum('chat-sessions');calculate()" class="num-input tabular w-24 bg-white border border-ink-150 rounded-md px-2.5 py-1.5 text-[13px] text-right">
+            </div>
+          </div>
+          <div class="field">
             <label class="block text-[13px] font-medium text-ink-500 mb-2" for="chat-messages-num">Messages / session</label>
             <div class="flex items-center gap-3">
               <input type="range" min="1" max="50" value="8" id="chat-messages" oninput="sync('chat-messages');calculate()" class="flex-1">
@@ -434,14 +441,14 @@ const METHODOLOGY = {
   },
   chatbot: {
     label: 'Chatbot',
-    intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La partie déjà envoyée au tour précédent est relue depuis le <strong>cache de prompt</strong>, facturé une fraction du prix d'entrée. La somme se fait sur les messages d'une session, multipliée par le nombre d'utilisateurs.",
+    intro: "Le contexte est renvoyé à chaque message, donc l'entrée <strong>grossit à chaque tour</strong> de la conversation. La partie déjà envoyée au tour précédent est relue depuis le <strong>cache de prompt</strong>, facturé une fraction du prix d'entrée. La somme se fait sur les messages d'une session, multipliée par le nombre de sessions du mois.",
     steps: [
       ['Entrée du message n°i', 'contexte + (i−1) × 200 + 100 tokens (+ 500 si mémoire activée)'],
       ['Dont lue en cache', 'à partir du 2e message : contexte + (i−2) × 200 (+ 500 si mémoire)'],
       ['Dont écrite en cache', "le reste de l'entrée, au prix d'entrée (× 1,25 chez Anthropic)"],
       ['Sortie par message', '200 tokens + tokens de raisonnement'],
       ['Coût par session', 'Σ sur les messages (écrit × prix écriture + lu × prix cache + sortie × prix sortie) ÷ 1M'],
-      ['Coût mensuel', 'utilisateurs × coût par session'],
+      ['Coût mensuel', 'utilisateurs × sessions par utilisateur × coût par session'],
     ],
   },
 };
@@ -591,8 +598,8 @@ function computeChatbot(model) {
   }
   const writePrice = model.cacheWrite ?? model.input;
   const sessionCost = (freshIn * writePrice + cachedIn * model.cachedInput + totalOut * model.output) / 1e6;
-  const monthlyCost = users * sessionCost;
-  return { monthlyCost, costPerRequest: users > 0 ? monthlyCost / users : 0, monthlyRequests: users };
+  const sessions = users * val('chat-sessions');
+  return { monthlyCost: sessions * sessionCost, costPerRequest: sessionCost, monthlyRequests: sessions };
 }
 
 function fmtMoney(v) {
